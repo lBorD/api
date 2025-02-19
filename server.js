@@ -9,19 +9,19 @@ app.use(express.json());
 // Testar a conexão com o banco de dados
 sequelize.authenticate()
   .then(() => {
-    console.log('Connection has been established successfully.');
+    console.log('-- Conexão com o banco de dados bem sucedida! ');
   })
   .catch(err => {
-    console.error('Unable to connect to the database:', err);
+    console.error('-- Não foi possível conectar com o banco de dados: ', err);
   });
 
 // Sincronizar os modelos com o banco de dados
 sequelize.sync()
   .then(() => {
-    console.log('Database synchronized');
+    console.log('-- Banco de dados sincronizado!');
   })
   .catch(err => {
-    console.error('Error synchronizing the database:', err);
+    console.error('-- Erro ao sincronizar o banco de dados:', err);
   });
 
 // Rotas
