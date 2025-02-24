@@ -30,7 +30,8 @@ app.get('/users', async (req, res) => {
     const users = await User.findAll();
     res.json(users);
   } catch (err) {
-    res.status(500).send('Error fetching users');
+    console.error('Error fetching users:', err);
+    res.status(500).send(`Error fetching users: ${err.message}`);
   }
 });
 
@@ -40,7 +41,8 @@ app.post('/users', async (req, res) => {
     const user = await User.create({ username, email, password });
     res.json(user);
   } catch (err) {
-    res.status(500).send('Error adding user');
+    console.error('Error adding user:', err);
+    res.status(500).send(`Error adding user: ${err.message}`);
   }
 });
 
