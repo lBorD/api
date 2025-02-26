@@ -21,7 +21,7 @@ loginController.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    res.json({ user: { id: user.id, email: user.email } });
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
