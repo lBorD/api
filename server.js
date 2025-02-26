@@ -10,7 +10,7 @@ app.use(cors());
 // Testar a conexão com o banco de dados
 sequelize.authenticate()
   .then(() => {
-    console.log('Connection has been established successfully.');
+    console.log('==== Conectado com o banco de dados!.  ==== ');
   })
   .catch(err => {
     console.error('Unable to connect to the database:', err);
@@ -19,7 +19,7 @@ sequelize.authenticate()
 // Sincronizar os modelos com o banco de dados
 sequelize.sync()
   .then(() => {
-    console.log('Database synchronized');
+    console.log('==== Banco de dados sincronizado com sucesso! ==== ');
   })
   .catch(err => {
     console.error('Error synchronizing the database:', err);
