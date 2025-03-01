@@ -14,10 +14,17 @@ class ClientController {
   static async registerClient(req, res) {
     try {
       const { name, lastName, phone, email, address } = req.body;
+
+      const existingClient = await Client.findOne({ where: { email } });
+      if (existingClient) {
+        return res.status(400).json({ error: "Este e-mail já está cadastrado." });
+      }
+
       const newClient = await Client.create({ name, lastName, phone, email, address });
       res.status(201).json(newClient);
+
     } catch (error) {
-      res.status(500).json({ error: "Erro ao registrar cliente." });
+      console.error("Erro ao registrar cliente:", error);
     }
   }
 
