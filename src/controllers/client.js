@@ -9,12 +9,12 @@ class ClientController {
 
       const existingClient = await Client.findOne({ where: { email } });
       if (existingClient) {
-        return res.status(400).json({ error: "Este e-mail já está cadastrado." });
+        return res.status(400).json({ success: false, message: "Este e-mail já está cadastrado." });
       }
 
       if (!existingClient) {
         const newClient = await Client.create({ name, lastName, phone, email, address });
-        res.status(201).json(newClient);
+        return res.status(201).json({ success: true });
       }
     } catch (error) {
       res.status(500).json({ error: "Erro ao registrar cliente." });
