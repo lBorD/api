@@ -1,13 +1,5 @@
-// registrar clientes
-// consultar cliente
-// actualizar cliente
-// eliminar cliente
-// listar clientes
-// listar clientes por nombre
-// listar clientes por apellido
-// listar clientes por telefono
-
 import Client from '../models/Client.js';
+import { isValidPhoneNumber } from '../utils/phoneValidator.js';
 
 class ClientController {
   // Registrar cliente
@@ -20,11 +12,12 @@ class ClientController {
         return res.status(400).json({ error: "Este e-mail já está cadastrado." });
       }
 
-      const newClient = await Client.create({ name, lastName, phone, email, address });
-      res.status(201).json(newClient);
-
+      if (!existingClient) {
+        const newClient = await Client.create({ name, lastName, phone, email, address });
+        res.status(201).json(newClient);
+      }
     } catch (error) {
-      console.error("Erro ao registrar cliente:", error);
+      res.status(500).json({ error: "Erro ao registrar cliente." });
     }
   }
 
@@ -34,7 +27,7 @@ class ClientController {
       const { id } = req.params;
       const client = await Client.findByPk(id);
       if (!client) {
-        return res.status(404).json({ error: "Cliente não encontrado." });
+        return res.status(404).json({ error: `Não foi possível  encontrar o cliente com o ID: ${id}` });;
       }
       res.status(200).json(client);
     } catch (error) {
@@ -89,6 +82,10 @@ class ClientController {
   static async listClientsByName(req, res) {
     try {
       const { name } = req.query;
+      if (!name) {
+        return res.status(400).json({ error: "Nome não fornecido." });
+      }
+
       const clients = await Client.findAll({ where: { name } });
       res.status(200).json(clients);
     } catch (error) {
@@ -100,6 +97,11 @@ class ClientController {
   static async listClientsByLastName(req, res) {
     try {
       const { lastName } = req.query;
+
+      if (!lastName) {
+        return res.status(400).json({ error: "Sobrenome não fornecido." });
+      }
+
       const clients = await Client.findAll({ where: { lastName } });
       res.status(200).json(clients);
     } catch (error) {
@@ -111,7 +113,15 @@ class ClientController {
   static async listClientsByPhone(req, res) {
     try {
       const { phone } = req.query;
-      const clients = await Client.findAll({ where: { phone } });
+      const validNumber = isValidPhoneNumber(phone);
+
+      if (validNumber.isValid === true) {
+        const clients = await Client.findAll({ where: { phone: validNumber.formatted } });
+      }
+
+      if (clients.length === 0) {
+        return res.status(404).json({ message: 'Nenhum cliente encontrado com o telefone fornecido.' });
+      }
       res.status(200).json(clients);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar clientes por telefone." });
