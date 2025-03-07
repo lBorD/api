@@ -5,7 +5,7 @@ class ClientController {
   // Registrar cliente
   static async registerClient(req, res) {
     try {
-      const { name, lastName, phone, email, address } = req.body;
+      const { name, lastName, phone, email, birthDate, address } = req.body;
 
       const existingClient = await Client.findOne({ where: { email } });
       if (existingClient) {
@@ -13,12 +13,19 @@ class ClientController {
       }
 
       if (!existingClient) {
-        const newClient = await Client.create({ name, lastName, phone, email, address });
+        await Client.create({ name, lastName, phone, email, birthDate, address });
         return res.status(201).json({ success: true });
       }
     } catch (error) {
-      res.status(500).json({ error: "Erro ao registrar cliente." });
+      console.error("Erro ao registrar cliente:", error); // Exibe o erro no terminal para debug
+
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao registrar cliente.",
+        error: process.env.NODE_ENV === "development" ? error.message : undefined // Retorna erro completo apenas em desenvolvimento
+      });
     }
+
   }
 
   // Consultar cliente por ID
@@ -39,7 +46,7 @@ class ClientController {
   static async updateClient(req, res) {
     try {
       const { id } = req.params;
-      const { name, lastName, phone, email, address } = req.body;
+      const { name, lastName, phone, email, birthDate, address } = req.body;
       const [updated] = await Client.update(
         { name, lastName, phone, email, address },
         { where: { id } }
