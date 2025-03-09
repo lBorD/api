@@ -2,16 +2,12 @@ import Client from '../models/Client.js';
 import { isValidPhoneNumber } from '../utils/phoneValidator.js';
 import { Op } from 'sequelize';
 
+
 class ClientController {
   // Registrar cliente
   static async registerClient(req, res) {
     try {
       const { name, lastName, phone, email, birthDate, address } = req.body;
-
-      const existingClient = await Client.findOne({ where: { email } });
-      if (existingClient) {
-        return res.status(400).json({ success: false, message: "Este e-mail já está cadastrado." });
-      }
 
       await Client.create({ name, lastName, phone, email, birthDate, address });
       return res.status(201).json({ success: true });
@@ -31,22 +27,28 @@ class ClientController {
   static async getClientById(req, res) {
     try {
       const { id } = req.params;
+
+      if (!id || isNaN(id) || parseInt(id) <= 0) {
+        return res.status(400).json({ error: "ID inválido. O ID deve ser um número positivo." });
+      }
+
       const client = await Client.findByPk(id);
       if (!client) {
-        return res.status(404).json({ error: `Não foi possível  encontrar o cliente com o ID: ${id}` });;
+        return res.status(404).json({ error: `Não foi possível encontrar o cliente com o ID: ${id}` });
       }
+
       res.status(200).json(client);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar cliente." });
     }
   }
 
+
   // Atualizar cliente
   static async updateClient(req, res) {
     try {
       const { id } = req.params;
       const { name, lastName, phone, email, birthDate, address } = req.body;
-
       const [updated] = await Client.update(
         { name, lastName, phone, email, birthDate, address },
         { where: { id } }
@@ -69,27 +71,49 @@ class ClientController {
   static async deleteClient(req, res) {
     try {
       const { id } = req.params;
-      const deleted = await Client.destroy({ where: { id } });
-      if (!deleted) {
+
+      if (!id || isNaN(id) || parseInt(id) <= 0) {
+        return res.status(400).json({ error: "ID inválido. O ID deve ser um número positivo." });
+      }
+
+      const client = await Client.findByPk(id);
+      if (!client) {
         return res.status(404).json({ error: "Cliente não encontrado." });
       }
+
+      await client.destroy();
+
       return res.status(200).json({ message: "Cliente excluído com sucesso." });
+
     } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
       res.status(500).json({ error: "Erro ao eliminar cliente." });
     }
   }
 
+
   // Listar todos os clientes
+
   static async listClients(req, res) {
     try {
-      let { page = 1, limit = 10 } = req.query;
+      let { page = 1, limit = 10, search } = req.query;
 
-      page = Math.max(1, Number(page) || 1);
-      limit = Math.min(Math.max(1, Number(limit) || 10), 100);
 
+      if (isNaN(page) || page < 1) {
+        return res.status(400).json({ error: "O parâmetro 'page' deve ser um número positivo." });
+      }
+      if (isNaN(limit) || limit < 1 || limit > 100) {
+        return res.status(400).json({ error: "O parâmetro 'limit' deve ser um número entre 1 e 100." });
+      }
+
+      page = Math.max(1, Number(page));
+      limit = Math.min(Math.max(1, Number(limit)), 100);
       const offset = (page - 1) * limit;
 
+      const where = search ? { name: { [Op.like]: `%${search}%` } } : {};
+
       const { count, rows: clients } = await Client.findAndCountAll({
+        where,
         limit,
         offset,
         order: [['updatedAt', 'DESC']]
@@ -103,9 +127,11 @@ class ClientController {
       });
 
     } catch (error) {
+      console.error("Erro ao listar clientes:", error);
       res.status(500).json({ error: "Erro ao listar clientes." });
     }
   }
+
 
 
   static async listClientsSync(req, res) {

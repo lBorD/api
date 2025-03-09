@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Rotas de clientes CRUD
 router.post('/register', validateClient, ClientController.registerClient); // Registrar cliente OK
-router.put('/update/:id', ClientController.updateClient); // Atualizar cliente OK
+router.put('/update/:id', validateClient, ClientController.updateClient); // Atualizar cliente OK
 router.delete('/delete/:id', ClientController.deleteClient); // Eliminar cliente OK
 
 // Rotas de pesquisa de clientes
