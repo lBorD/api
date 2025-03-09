@@ -10,6 +10,7 @@ router.put('/update/:id', ClientController.updateClient); // Atualizar cliente O
 router.delete('/delete/:id', ClientController.deleteClient); // Eliminar cliente OK
 
 // Rotas de pesquisa de clientes
+router.get('/search/sync', ClientController.listClientsSync); // Listar clientes por email OK
 router.get('/search/by-name', ClientController.listClientsByName); // Listar clientes por nome OK
 router.get('/search/by-lastname', ClientController.listClientsByLastName);   // Listar clientes por sobrenome OK
 router.get('/search/by-phone', ClientController.listClientsByPhone); // Listar clientes por telefone OK
