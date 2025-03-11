@@ -28,6 +28,10 @@ const Client = sequelize.define("Client", {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  birthDate: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  }
 });
 
 export default Client;
