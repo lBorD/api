@@ -1,6 +1,7 @@
 import Client from '../models/Client.js';
 import { isValidPhoneNumber } from '../utils/phoneValidator.js';
 import { Op } from 'sequelize';
+import dayjs from 'dayjs';
 
 
 class ClientController {
@@ -22,7 +23,6 @@ class ClientController {
     }
   }
 
-
   // Consultar cliente por ID
   static async getClientById(req, res) {
     try {
@@ -42,7 +42,6 @@ class ClientController {
       res.status(500).json({ error: "Erro ao buscar cliente." });
     }
   }
-
 
   // Atualizar cliente
   static async updateClient(req, res) {
@@ -65,7 +64,6 @@ class ClientController {
       return res.status(500).json({ error: "Erro ao atualizar cliente." });
     }
   }
-
 
   // Eliminar cliente
   static async deleteClient(req, res) {
@@ -91,9 +89,7 @@ class ClientController {
     }
   }
 
-
   // Listar todos os clientes
-
   static async listClients(req, res) {
     try {
       let { page = 1, limit = 10, search } = req.query;
@@ -132,26 +128,33 @@ class ClientController {
     }
   }
 
-
-
   static async listClientsSync(req, res) {
     try {
-      const lastSync = req.query.lastSync && req.query.lastSync !== ''
-        ? req.query.lastSync
-        : '2000-01-01 00:00:00';
+      const { lastSync } = req.query;
+      const format = 'YYYY-MM-DD HH:mm:ss';
+
+      if (lastSync && !dayjs(lastSync, format, true).isValid()) {
+        return res.status(400).json({ error: `Formato inválido para lastSync. Use ${format}` });
+      }
+
+      const validatedLastSync = lastSync || '2000-01-01 00:00:00';
+
       const clients = await Client.findAll({
-        where: {
-          updatedAt: { [Op.gt]: lastSync }
-        },
+        where: { updatedAt: { [Op.gt]: validatedLastSync } },
         order: [['updatedAt', 'DESC']],
+        limit: 1000,
       });
 
       res.status(200).json(clients);
     } catch (error) {
-      console.error("Erro ao listar clientes:", error);
-      res.status(500).json({ error: "Erro ao listar clientes." });
+      console.error("Erro ao listar clientes:", {
+        message: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({ error: "Erro interno ao listar clientes." });
     }
   }
+
 
   // Listar clientes por nome
   static async listClientsByName(req, res) {
@@ -166,6 +169,10 @@ class ClientController {
           name: { [Op.like]: `%${name}%` } // 🔹 Busca parcial
         }
       });
+
+      if (clients.length === 0) {
+        return res.status(404).json({ error: "Nenhum cliente encontrado com esse nome." });
+      }
 
       res.status(200).json(clients);
     } catch (error) {
@@ -187,6 +194,10 @@ class ClientController {
           lastName: { [Op.like]: `%${lastName}%` }
         }
       });
+
+      if (clients.length === 0) {
+        return res.status(404).json({ error: "Nenhum cliente encontrado com esse sobrenome." });
+      }
 
       res.status(200).json(clients);
     } catch (error) {
