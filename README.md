@@ -3,9 +3,6 @@
 Esta é a API para o **BeautyApp**, um sistema de gerenciamento de salão de beleza. Ela fornece endpoints para autenticação, cadastro de clientes, agendamentos e outras funcionalidades.
 
 ---
-Aqui está um sumário otimizado com emojis para seu README da API BeautyApp:
-
----
 
 ## 📌 Sumário  
 
@@ -19,10 +16,7 @@ Aqui está um sumário otimizado com emojis para seu README da API BeautyApp:
   * [▶️ Inicie o Servidor](#5-inicie-o-servidor)
 - [🤝 Contribuição](#contribuição)
 - [📜 Licença](#licença)
-
----
-
-Esse sumário deixa o README mais visual e organizado para facilitar a navegação.
+  
 ---
 
 ## Pré-requisitos
@@ -105,7 +99,9 @@ A API estará disponível em `http://localhost:3000`.
 
 ## Contribuição
 
-Se você deseja contribuir com o projeto, por favor, siga as diretrizes de contribuição e envie um pull request.
+O BeautyApp é um projeto privado, desenvolvido como parte do portfólio pessoal de seu criador Gabriel Ribeiro e com potencial para comercialização futura.
+
+O código-fonte não está disponível para contribuições externas e o aplicativo será distribuído conforme estratégias comerciais definidas futuramente.
 
 ---
 
