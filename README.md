@@ -3,6 +3,27 @@
 Esta é a API para o **BeautyApp**, um sistema de gerenciamento de salão de beleza. Ela fornece endpoints para autenticação, cadastro de clientes, agendamentos e outras funcionalidades.
 
 ---
+Aqui está um sumário otimizado com emojis para seu README da API BeautyApp:
+
+---
+
+## 📌 Sumário  
+
+- [🚀 Sobre a API BeautyApp](#api-para-o-beautyapp)
+- [⚙️ Pré-requisitos](#pré-requisitos)
+- [📦 Instalação](#instalação)
+  * [🗃️ Clone o Repositório](#1-clone-o-repositório)
+  * [📥 Instale as Dependências](#2-instale-as-dependências)
+  * [🛢️ Configure o Banco de Dados](#3-configure-o-banco-de-dados)
+  * [🔧 Execute as Migrações](#4-execute-as-migrações)
+  * [▶️ Inicie o Servidor](#5-inicie-o-servidor)
+- [🤝 Contribuição](#contribuição)
+- [📜 Licença](#licença)
+
+---
+
+Esse sumário deixa o README mais visual e organizado para facilitar a navegação.
+---
 
 ## Pré-requisitos
 
