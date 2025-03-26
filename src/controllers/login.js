@@ -1,30 +1,34 @@
-import express from 'express';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
-const loginController = express.Router();
+const generateToken = (userId) => {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '12h' });
+};
 
-// Login Controller
-loginController.post('/login', async (req, res) => {
+const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Check if user exists
     const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(400).json({ message: 'Email não encontrado em nossa base de dados.' });
     }
 
-    // Check if password is correct
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Senha incorreta.' });
     }
 
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+    const token = generateToken(user.id);
 
-export default loginController;
+    res.json({
+      token,
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erro no servidor', error });
+  }
+};
+
+export default login;
