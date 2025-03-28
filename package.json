@@ -8,7 +8,12 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
     "tunnel": "ngrok http 3000",
-    "start": "concurrently \"npm run dev\" \"npm run tunnel\""
+    "start": "concurrently \"npm run dev\" \"npm run tunnel\"",
+    "db:migrate": "npx sequelize-cli db:migrate",
+    "db:migrate:undo": "npx sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "npx sequelize-cli db:migrate:undo:all",
+    "db:seed:all": "npx sequelize-cli db:seed:all",
+    "db:seed:undo:all": "npx sequelize-cli db:seed:undo:all"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +33,8 @@
   "devDependencies": {
     "concurrently": "^9.1.2",
     "ngrok": "^5.0.0-beta.2",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "sequelize-cli": "^6.6.2",
+    "sequelize-cli-esm": "^5.0.6"
   }
 }
