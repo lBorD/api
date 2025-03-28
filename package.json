@@ -27,6 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.4",
     "mysql2": "^3.12.0",
+    "pg": "^8.14.1",
+    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.5",
     "validator": "^13.12.0"
   },
