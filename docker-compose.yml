@@ -1,0 +1,32 @@
+version: "3.8"
+services:
+  # Serviço do Postgres
+  db:
+    image: postgres:15
+    container_name: beautyapp-db
+    environment:
+      POSTGRES_USER: beautyapp
+      POSTGRES_PASSWORD: beautyapp
+      POSTGRES_DB: beautyapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - meu-volume-postgres:/var/lib/postgresql/data
+
+  # Serviço da API
+  # api:
+  #   build: .
+  #   container_name: minha-api
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     # Variáveis necessárias para a API se conectar ao Postgres:
+  #     DB_HOST: db
+  #     DB_USER: beautyapp
+  #     DB_PASSWORD: beautyapp
+  #     DB_NAME: beautyapp
+  #   depends_on:
+  #     - db
+
+volumes:
+  meu-volume-postgres:
