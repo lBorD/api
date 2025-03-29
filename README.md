@@ -4,6 +4,21 @@ Esta é a API para o **BeautyApp**, um sistema de gerenciamento de salão de bel
 
 ---
 
+## 📌 Sumário  
+
+- [🚀 Sobre a API BeautyApp](#api-para-o-beautyapp)
+- [⚙️ Pré-requisitos](#pré-requisitos)
+- [📦 Instalação](#instalação)
+  * [🗃️ Clone o Repositório](#1-clone-o-repositório)
+  * [📥 Instale as Dependências](#2-instale-as-dependências)
+  * [🛢️ Configure o Banco de Dados](#3-configure-o-banco-de-dados)
+  * [🔧 Execute as Migrações](#4-execute-as-migrações)
+  * [▶️ Inicie o Servidor](#5-inicie-o-servidor)
+- [🤝 Contribuição](#contribuição)
+- [📜 Licença](#licença)
+  
+---
+
 ## Pré-requisitos
 
 Antes de começar, certifique-se de que você tem os seguintes itens instalados e configurados:
@@ -84,7 +99,9 @@ A API estará disponível em `http://localhost:3000`.
 
 ## Contribuição
 
-Se você deseja contribuir com o projeto, por favor, siga as diretrizes de contribuição e envie um pull request.
+O BeautyApp é um projeto privado, desenvolvido como parte do portfólio pessoal de seu criador Gabriel Ribeiro e com potencial para comercialização futura.
+
+O código-fonte não está disponível para contribuições externas e o aplicativo será distribuído conforme estratégias comerciais definidas futuramente.
 
 ---
 
