@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js';
+import bcrypt from 'bcrypt';
 
 const User = sequelize.define('User', {
   id: {
@@ -32,6 +33,20 @@ const User = sequelize.define('User', {
 }, {
   timestamps: true,
   tableName: 'users',
+  hooks: {
+    beforeCreate: async (user) => {
+      if (user.password) {
+        const rounds = parseInt(process.env.SALT_ROUNDS, 10);
+        const hash = await bcrypt.hash(user.password, rounds);
+        user.password = hash;
+      }
+    },
+    beforeUpdate: async (user) => {
+      if (user.password && user.changed('password')) {
+        const hash = await bcrypt.hash(user.password, process.env.SALT_ROUNDS);
+        user.password = hash;
+      }
+    }
+  }
 });
-
 export default User;

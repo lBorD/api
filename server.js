@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import sequelize from './src/config/db.js';
-import { authRoutes, clientRoutes } from './src/routes/index.js';
+import { authRoutes, clientRoutes, userRoutes } from './src/routes/index.js';
 import cors from 'cors';
 
 const app = express();
@@ -29,6 +29,7 @@ sequelize.sync()
 // Rotas
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
+app.use('/users', userRoutes);
 
 app.listen(3000, () => {
   console.log('Server is running on http://localhost:3000');
