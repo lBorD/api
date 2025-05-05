@@ -48,6 +48,7 @@ class ClientController {
     try {
       const { id } = req.params;
       const { name, lastName, phone, email, birthDate, address } = req.body;
+      console.log("Dados recebidos:", req.body);
       const [updated] = await Client.update(
         { name, lastName, phone, email, birthDate, address },
         { where: { id } }
