@@ -8,7 +8,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Testar a conexão com o banco de dados
 sequelize.authenticate()
   .then(() => {
     console.log('==== Conectado com o banco de dados!  ==== ');
@@ -17,7 +16,6 @@ sequelize.authenticate()
     console.error('==== Não foi possível conectar com o banco de dados!  ==== ', err);
   });
 
-// Sincronizar os modelos com o banco de dados
 sequelize.sync()
   .then(() => {
     console.log('==== Banco de dados sincronizado com sucesso! ==== ');
@@ -26,7 +24,6 @@ sequelize.sync()
     console.error('==== Não foi possível sincronizar com o banco de dados!', err);
   });
 
-// Rotas
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
 app.use('/users', userRoutes);
