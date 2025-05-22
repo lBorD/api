@@ -1,12 +1,13 @@
 import express from 'express';
 import ClientController from '../controllers/client.js';
 import validateClient from '../middlewares/validateClient.js';
+import validateClientUpdate from '../middlewares/validateClientUpdate.js';
 
 const router = express.Router();
 
 // Rotas de clientes CRUD
 router.post('/register', validateClient, ClientController.registerClient); // Registrar cliente OK
-router.put('/update/:id', validateClient, ClientController.updateClient); // Atualizar cliente OK
+router.patch('/update/:id', validateClientUpdate, ClientController.updateClient); // Atualizar cliente OK
 router.delete('/delete/:id', ClientController.deleteClient); // Eliminar cliente OK
 
 // Rotas de pesquisa de clientes

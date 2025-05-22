@@ -5,7 +5,6 @@ import dayjs from 'dayjs';
 
 
 class ClientController {
-  // Registrar cliente
   static async registerClient(req, res) {
     try {
       const { name, lastName, phone, email, birthDate, address } = req.body;
@@ -23,7 +22,6 @@ class ClientController {
     }
   }
 
-  // Consultar cliente por ID
   static async getClientById(req, res) {
     try {
       const { id } = req.params;
@@ -43,11 +41,11 @@ class ClientController {
     }
   }
 
-  // Atualizar cliente
   static async updateClient(req, res) {
     try {
       const { id } = req.params;
       const { name, lastName, phone, email, birthDate, address } = req.body;
+      console.log("Dados recebidos:", req.body);
       const [updated] = await Client.update(
         { name, lastName, phone, email, birthDate, address },
         { where: { id } }
@@ -65,7 +63,6 @@ class ClientController {
     }
   }
 
-  // Eliminar cliente
   static async deleteClient(req, res) {
     try {
       const { id } = req.params;
@@ -89,7 +86,6 @@ class ClientController {
     }
   }
 
-  // Listar todos os clientes
   static async listClients(req, res) {
     try {
       let { page = 1, limit = 10, search } = req.query;
@@ -156,7 +152,6 @@ class ClientController {
   }
 
 
-  // Listar clientes por nome
   static async listClientsByName(req, res) {
     try {
       const { name } = req.query;
@@ -181,7 +176,6 @@ class ClientController {
   }
 
 
-  // Listar clientes por sobrenome
   static async listClientsByLastName(req, res) {
     try {
       const { lastName } = req.query;
@@ -205,7 +199,6 @@ class ClientController {
     }
   }
 
-  // Listar clientes por telefone
   static async listClientsByPhone(req, res) {
     try {
       const { phone } = req.query;
