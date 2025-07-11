@@ -26,8 +26,8 @@ Antes de começar, certifique-se de que você tem os seguintes itens instalados 
 1. **Node.js**: Versão 18.20.6 ou superior.
    - [Download do Node.js](https://nodejs.org/)
 
-2. **MySQL**: Banco de dados utilizado pela API.
-   - [Download do MySQL](https://dev.mysql.com/downloads/mysql/)
+2. **PostgreSQL**: Banco de dados utilizado pela API.
+   - [Download do PostgreSQL](https://www.postgresql.org/download/)
 
 3. **Git** (opcional): Para clonar o repositório.
    - [Download do Git](https://git-scm.com/)
@@ -61,7 +61,7 @@ Crie um banco de dados MySQL e configure as credenciais no arquivo `.env`:
 Acesse o MySQL e crie o banco de dados:
 
 ```sql
-mysql -u root -p
+postgres -u postgres -p
 ```
 
 ```sql
@@ -74,7 +74,7 @@ DB_NAME=beautyapp
 DB_USER=seu-usuario
 DB_PASSWORD=sua-senha
 DB_HOST=localhost
-DB_DIALECT=mysql
+DB_DIALECT=postgres
 ```
 
 ### 4. Execute as Migrações
