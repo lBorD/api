@@ -36,7 +36,7 @@ describe('Client Routes', () => {
     });
   });
 
-  describe('PUT /clients/update/:id', () => {
+  describe('PATCH /clients/update/:id', () => {
     it('deve atualizar cliente com sucesso', async () => {
       const updateData = {
         name: 'João Atualizado',
@@ -48,7 +48,7 @@ describe('Client Routes', () => {
       };
 
       const response = await request(app)
-        .put('/clients/update/1')
+        .patch('/clients/update/1')
         .send(updateData)
         .expect(200);
 
