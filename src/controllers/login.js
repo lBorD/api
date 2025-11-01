@@ -27,7 +27,12 @@ const login = async (req, res) => {
       success: true,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Erro no servidor', error });
+    console.error("Erro no login:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Erro no servidor.",
+      error: process.env.DEBUG === 'true' ? error.message : undefined
+    });
   }
 };
 

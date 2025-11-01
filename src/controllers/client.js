@@ -17,7 +17,7 @@ class ClientController {
       return res.status(500).json({
         success: false,
         message: "Erro ao registrar cliente.",
-        error: process.env.NODE_ENV === "development" ? error.message : undefined
+        error: process.env.DEBUG === 'true' ? error.message : undefined
       });
     }
   }
@@ -37,29 +37,48 @@ class ClientController {
 
       res.status(200).json(client);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar cliente." });
+      console.error("Erro ao buscar cliente:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao buscar cliente.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
   static async updateClient(req, res) {
     try {
       const { id } = req.params;
-      const { name, lastName, phone, email, birthDate, address } = req.body;
-      console.log("Dados recebidos:", req.body);
-      const [updated] = await Client.update(
-        { name, lastName, phone, email, birthDate, address },
-        { where: { id } }
-      );
 
-      if (!updated) {
+      const client = await Client.findByPk(id);
+      if (!client) {
         return res.status(404).json({ error: "Cliente não encontrado." });
       }
 
-      const updatedClient = await Client.findByPk(id);
-      return res.status(200).json(updatedClient);
+      const updates = {};
+      const allowedFields = ['name', 'lastName', 'phone', 'email', 'birthDate', 'address'];
+
+      allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      });
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "Nenhum campo válido para atualizar." });
+      }
+
+      await client.update(updates);
+
+      return res.status(200).json(client);
 
     } catch (error) {
-      return res.status(500).json({ error: "Erro ao atualizar cliente." });
+      console.error("Erro ao atualizar cliente:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao atualizar cliente.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
@@ -82,14 +101,17 @@ class ClientController {
 
     } catch (error) {
       console.error("Erro ao excluir cliente:", error);
-      res.status(500).json({ error: "Erro ao eliminar cliente." });
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao eliminar cliente.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
   static async listClients(req, res) {
     try {
       let { page = 1, limit = 10, search } = req.query;
-
 
       if (isNaN(page) || page < 1) {
         return res.status(400).json({ error: "O parâmetro 'page' deve ser um número positivo." });
@@ -120,7 +142,11 @@ class ClientController {
 
     } catch (error) {
       console.error("Erro ao listar clientes:", error);
-      res.status(500).json({ error: "Erro ao listar clientes." });
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao listar clientes.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
@@ -171,7 +197,12 @@ class ClientController {
 
       res.status(200).json(clients);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar clientes por nome." });
+      console.error("Erro ao buscar clientes por nome:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao buscar clientes por nome.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
@@ -195,7 +226,12 @@ class ClientController {
 
       res.status(200).json(clients);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar clientes por sobrenome." });
+      console.error("Erro ao buscar clientes por sobrenome:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao buscar clientes por sobrenome.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
@@ -220,7 +256,12 @@ class ClientController {
 
       return res.status(200).json(clients);
     } catch (error) {
-      return res.status(500).json({ error: "Erro ao buscar clientes por telefone." });
+      console.error("Erro ao buscar clientes por telefone:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao buscar clientes por telefone.",
+        error: process.env.DEBUG === 'true' ? error.message : undefined
+      });
     }
   }
 
