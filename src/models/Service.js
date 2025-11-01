@@ -16,10 +16,10 @@ const Service = sequelize.define("Service", {
     }
   },
   price: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.FLOAT,
     allowNull: false,
     validate: {
-      isDecimal: true,
+      isFloat: true,
       min: 0.01
     }
   },
@@ -32,11 +32,11 @@ const Service = sequelize.define("Service", {
     }
   },
   cost: {
-    type: DataTypes.DECIMAL(10, 2),
+    type: DataTypes.FLOAT,
     allowNull: true,
     defaultValue: 0.00,
     validate: {
-      isDecimal: true,
+      isFloat: true,
       min: 0
     }
   },

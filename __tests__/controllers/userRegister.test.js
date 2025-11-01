@@ -32,14 +32,16 @@ describe('UserController', () => {
       const response = await request(app)
         .post('/register')
         .send(userData)
-        .expect(200);
+        .expect(201);
 
       expect(User.create).toHaveBeenCalledWith(userData);
       expect(response.body).toMatchObject({
-        id: 1,
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'password123'
+        success: true,
+        user: {
+          id: 1,
+          username: 'testuser',
+          email: 'test@example.com'
+        }
       });
     });
 
@@ -58,7 +60,10 @@ describe('UserController', () => {
         .send(userData)
         .expect(500);
 
-      expect(response.text).toContain('Não foi possível adicionar o usuário');
+      expect(response.body).toMatchObject({
+        success: false,
+        message: 'Erro ao registrar usuário.'
+      });
       expect(User.create).toHaveBeenCalledWith(userData);
     });
 

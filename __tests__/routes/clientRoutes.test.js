@@ -47,20 +47,46 @@ describe('Client Routes', () => {
         address: 'Rua Nova, 456'
       };
 
+      const mockClient = {
+        id: 1,
+        name: 'João',
+        lastName: 'Silva',
+        phone: '+5511888888888',
+        email: 'joao@example.com',
+        birthDate: '1990-01-01',
+        address: 'Rua Antiga, 123',
+        update: jest.fn().mockImplementation(function(updates) {
+          Object.assign(this, updates);
+          return Promise.resolve(this);
+        })
+      };
+
+      Client.findByPk.mockResolvedValueOnce(mockClient);
+
       const response = await request(app)
-        .put('/clients/update/1')
+        .patch('/clients/update/1')
         .send(updateData)
         .expect(200);
 
-      expect(response.body).toBeNull();
+      expect(response.body).toMatchObject({
+        id: 1,
+        name: 'João Atualizado'
+      });
     });
   });
 
   describe('DELETE /clients/delete/:id', () => {
     it('deve deletar cliente com sucesso', async () => {
+      const mockClient = {
+        id: 1,
+        destroy: jest.fn().mockResolvedValue()
+      };
+
+      Client.findByPk.mockResolvedValue(mockClient);
+
       await request(app)
         .delete('/clients/delete/1')
-        .expect(404);
+        .expect(200);
     });
   });
 
@@ -115,9 +141,12 @@ describe('Client Routes', () => {
 
   describe('GET /clients/search/by-id/:id', () => {
     it('deve buscar cliente por ID', async () => {
+      const mockClient = { id: 1, name: 'João' };
+      Client.findByPk.mockResolvedValue(mockClient);
+
       await request(app)
         .get('/clients/search/by-id/1')
-        .expect(404);
+        .expect(200);
     });
   });
 
@@ -155,6 +184,8 @@ describe('Client Routes', () => {
 
   describe('Tratamento de erros', () => {
     it('deve lidar com erros do controlador', async () => {
+      Client.findByPk.mockResolvedValue(null);
+
       const response = await request(app)
         .get('/clients/search/by-id/999')
         .expect(404);

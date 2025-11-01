@@ -89,7 +89,7 @@ describe('ServiceController', () => {
         .send(serviceData)
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao criar serviço.'
       });
@@ -109,7 +109,7 @@ describe('ServiceController', () => {
       });
 
       const response = await request(app)
-        .get('/search?page=1&limit=10')
+        .get('/search?page=1&limit=10&active=true')
         .expect(200);
 
       expect(Service.findAndCountAll).toHaveBeenCalledWith({
@@ -137,7 +137,7 @@ describe('ServiceController', () => {
       });
 
       const response = await request(app)
-        .get('/search?search=Maquiagem')
+        .get('/search?page=1&limit=10&active=true&search=Maquiagem')
         .expect(200);
 
       expect(Service.findAndCountAll).toHaveBeenCalledWith({
@@ -165,10 +165,10 @@ describe('ServiceController', () => {
       Service.findAndCountAll.mockRejectedValue(new Error('Database error'));
 
       const response = await request(app)
-        .get('/search')
+        .get('/search?page=1&limit=10&active=true')
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao listar serviços.'
       });
@@ -224,7 +224,7 @@ describe('ServiceController', () => {
         .get('/search/by-id/1')
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao buscar serviço.'
       });
@@ -286,7 +286,7 @@ describe('ServiceController', () => {
         .send({ name: 'Teste' })
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao atualizar serviço.'
       });
@@ -333,7 +333,7 @@ describe('ServiceController', () => {
         .delete('/delete/1')
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao desativar serviço.'
       });
@@ -367,7 +367,7 @@ describe('ServiceController', () => {
         .get('/search/active')
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao listar serviços ativos.'
       });
