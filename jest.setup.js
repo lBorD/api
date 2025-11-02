@@ -150,6 +150,7 @@ jest.mock('./src/controllers/userRegister.js', () => ({
 
 // Mock dos middlewares
 jest.mock('./src/middlewares/validateClient.js', () => jest.fn((req, res, next) => next()));
+jest.mock('./src/middlewares/validateClientUpdate.js', () => jest.fn((req, res, next) => next()));
 
 // Mock da configuração do banco
 jest.mock('./src/config/db.js', () => ({

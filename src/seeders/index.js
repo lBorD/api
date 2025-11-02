@@ -1,5 +1,6 @@
 import UserSeeder from './UserSeeder.js';
 import ClientSeeder from './ClientSeeder.js';
+import ServiceSeeder from './ServiceSeeder.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -7,7 +8,8 @@ class SeederManager {
   constructor() {
     this.seeders = [
       new UserSeeder(),
-      new ClientSeeder()
+      new ClientSeeder(),
+      new ServiceSeeder()
     ];
   }
 

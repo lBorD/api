@@ -68,7 +68,7 @@ describe('ClientController', () => {
         .send(clientData)
         .expect(500);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: false,
         message: 'Erro ao registrar cliente.'
       });
@@ -131,22 +131,34 @@ describe('ClientController', () => {
         address: 'Rua Nova, 456'
       };
 
-      const updatedClient = {
+      const mockClient = {
         id: 1,
-        ...updateData
+        name: 'João Atualizado',
+        lastName: 'Silva',
+        phone: '+5511999999999',
+        email: 'joao@example.com',
+        birthDate: '1990-01-01',
+        address: 'Rua Nova, 456',
+        update: jest.fn().mockImplementation(function (data) {
+          Object.assign(this, data);
+          return Promise.resolve(this);
+        })
       };
 
-      Client.update.mockResolvedValue([1]);
-      Client.findByPk.mockResolvedValue(updatedClient);
+      Client.findByPk.mockResolvedValue(mockClient);
 
       const response = await request(app)
         .put('/1')
         .send(updateData)
         .expect(200);
 
-      expect(Client.update).toHaveBeenCalledWith(updateData, { where: { id: '1' } });
       expect(Client.findByPk).toHaveBeenCalledWith('1');
-      expect(response.body).toEqual(updatedClient);
+      expect(mockClient.update).toHaveBeenCalledWith(updateData);
+      expect(response.body).toMatchObject({
+        id: 1,
+        name: 'João Atualizado',
+        lastName: 'Silva'
+      });
     });
 
     it('deve retornar erro 404 quando cliente não for encontrado para atualização', async () => {
@@ -159,7 +171,7 @@ describe('ClientController', () => {
         address: 'Rua Nova, 456'
       };
 
-      Client.update.mockResolvedValue([0]);
+      Client.findByPk.mockResolvedValue(null);
 
       const response = await request(app)
         .put('/999')

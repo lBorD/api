@@ -57,8 +57,8 @@ npm install
 
 ### 3. Configure o Banco de Dados
 
-Crie um banco de dados MySQL e configure as credenciais no arquivo `.env`:
-Acesse o MySQL e crie o banco de dados:
+Crie um banco de dados PostgreSQL e configure as credenciais no arquivo `.env`:
+Acesse o PostgreSQL e crie o banco de dados:
 
 ```sql
 postgres -u postgres -p

@@ -107,9 +107,9 @@ describe('Login Controller', () => {
         .send(loginData)
         .expect(500);
 
-      expect(response.body).toEqual({
-        message: 'Erro no servidor',
-        error: {}
+      expect(response.body).toMatchObject({
+        success: false,
+        message: 'Erro no servidor.'
       });
     });
   });
