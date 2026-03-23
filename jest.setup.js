@@ -23,7 +23,8 @@ const DataTypes = {
   INTEGER: 'INTEGER',
   DATE: 'DATE',
   TEXT: 'TEXT',
-  BOOLEAN: 'BOOLEAN'
+  BOOLEAN: 'BOOLEAN',
+  DECIMAL: () => 'DECIMAL'
 };
 
 // Mock do Op do Sequelize
@@ -105,6 +106,18 @@ jest.mock('./src/models/User.js', () => ({
     update: jest.fn(),
     destroy: jest.fn(),
     findAll: jest.fn()
+  }
+}));
+
+jest.mock('./src/models/Service.js', () => ({
+  default: {
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    findAll: jest.fn(),
+    findAndCountAll: jest.fn()
   }
 }));
 
