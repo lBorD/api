@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import sequelize from './src/config/db.js';
-import { authRoutes, clientRoutes, userRoutes } from './src/routes/index.js';
+import { authRoutes, clientRoutes, serviceRoutes, userRoutes } from './src/routes/index.js';
 import cors from 'cors';
 
 const app = express();
@@ -26,6 +26,7 @@ sequelize.sync()
 
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
+app.use('/services', serviceRoutes);
 app.use('/users', userRoutes);
 
 app.listen(3000, () => {
