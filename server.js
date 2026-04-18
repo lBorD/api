@@ -1,8 +1,8 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
-import sequelize from './src/config/db.js';
-import { authRoutes, clientRoutes, serviceRoutes, userRoutes } from './src/routes/index.js';
 import cors from 'cors';
+import sequelize from './src/config/db.js';
+import { authRoutes, clientRoutes, serviceRoutes, appointmentRoutes, userRoutes } from './src/routes/index.js';
 
 const app = express();
 app.use(express.json());
@@ -12,7 +12,7 @@ sequelize.authenticate()
   .then(() => {
     console.log('==== Conectado com o banco de dados!  ==== ');
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('==== Não foi possível conectar com o banco de dados!  ==== ', err);
   });
 
@@ -20,13 +20,14 @@ sequelize.sync()
   .then(() => {
     console.log('==== Banco de dados sincronizado com sucesso! ==== ');
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('==== Não foi possível sincronizar com o banco de dados!', err);
   });
 
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
 app.use('/services', serviceRoutes);
+app.use('/appointments', appointmentRoutes);
 app.use('/users', userRoutes);
 
 app.listen(3000, () => {

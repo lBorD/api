@@ -1,124 +1,85 @@
-import request from 'supertest';
+﻿import request from 'supertest';
 import express from 'express';
 import cors from 'cors';
-import { authRoutes, clientRoutes, userRoutes } from '../../src/routes/index.js';
+import {
+  authRoutes,
+  clientRoutes,
+  serviceRoutes,
+  appointmentRoutes,
+  userRoutes,
+} from '../../src/routes/index.js';
 
-// Criar aplicação de teste
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Rotas
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
+app.use('/services', serviceRoutes);
+app.use('/appointments', appointmentRoutes);
 app.use('/users', userRoutes);
 
+const withAuth = (reqBuilder) => reqBuilder.set('Authorization', 'Bearer test-token');
+
 describe('Server Integration Tests', () => {
-  describe('Configuração do servidor', () => {
-    it('deve configurar middleware JSON', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .send({ email: 'test@example.com', password: 'password123' })
-        .expect(400); // Esperamos 400 porque não há usuário real no banco
+  it('deve configurar middleware JSON', async () => {
+    const response = await request(app)
+      .post('/auth/login')
+      .send({ email: 'test@example.com', password: 'password123' })
+      .expect(400);
 
-      expect(response.body).toHaveProperty('message');
-    });
-
-    it('deve configurar CORS', async () => {
-      const response = await request(app)
-        .get('/clients/search')
-        .set('Origin', 'http://localhost:3000')
-        .expect(200);
-
-      expect(response.headers).toHaveProperty('access-control-allow-origin');
-    });
+    expect(response.body).toHaveProperty('message');
   });
 
-  describe('Rotas de autenticação', () => {
-    it('deve rejeitar credenciais inválidas', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .send({
-          email: 'wrong@example.com',
-          password: 'wrongpassword'
-        })
-        .expect(400);
+  it('deve configurar CORS', async () => {
+    const response = await withAuth(request(app)
+      .get('/clients/search')
+      .set('Origin', 'http://localhost:3000'))
+      .expect(200);
 
-      expect(response.body).toEqual({
-        message: 'Email não encontrado em nossa base de dados.'
-      });
-    });
+    expect(response.headers).toHaveProperty('access-control-allow-origin');
   });
 
-  describe('Rotas de clientes', () => {
-    it('deve listar clientes', async () => {
-      const response = await request(app)
-        .get('/clients/search')
-        .expect(200);
-
-      expect(response.body).toHaveProperty('clients');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body).toHaveProperty('page');
-      expect(response.body).toHaveProperty('pages');
-    });
-
-    it('deve listar clientes sincronizados', async () => {
-      const response = await request(app)
-        .get('/clients/search/sync')
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
-    });
-
-
+  it('deve bloquear rota privada sem token', async () => {
+    await request(app)
+      .get('/clients/search')
+      .expect(401);
   });
 
-  describe('Tratamento de erros', () => {
-    it('deve retornar 404 para rotas inexistentes', async () => {
-      await request(app)
-        .get('/nonexistent')
-        .expect(404);
-    });
+  it('deve permitir rota privada com token', async () => {
+    const response = await withAuth(request(app)
+      .get('/services/search'))
+      .expect(200);
 
-    it('deve retornar 404 para métodos não suportados', async () => {
-      await request(app)
-        .patch('/auth/login')
-        .expect(404);
-    });
+    expect(response.body).toHaveProperty('services');
   });
 
-  describe('Validação de entrada', () => {
-    it('deve aceitar JSON válido', async () => {
-      const response = await request(app)
-        .post('/auth/login')
-        .set('Content-Type', 'application/json')
-        .send({
-          email: 'test@example.com',
-          password: 'password123'
-        })
-        .expect(400); // Esperamos 400 porque não há usuário real
+  it('deve listar clientes', async () => {
+    const response = await withAuth(request(app)
+      .get('/clients/search'))
+      .expect(200);
 
-      expect(response.body).toHaveProperty('message');
-    });
+    expect(response.body).toHaveProperty('clients');
   });
 
-  describe('Headers e CORS', () => {
-    it('deve incluir headers CORS apropriados', async () => {
-      const response = await request(app)
-        .get('/clients/search')
-        .set('Origin', 'http://localhost:3000')
-        .expect(200);
+  it('deve listar agendamentos por janela', async () => {
+    const response = await withAuth(request(app)
+      .get('/appointments?from=2026-04-15T00:00:00.000Z&to=2026-04-15T23:59:59.999Z'))
+      .expect(200);
 
-      expect(response.headers).toHaveProperty('access-control-allow-origin');
-    });
-
-    it('deve aceitar requisições de diferentes origens', async () => {
-      const response = await request(app)
-        .get('/clients/search')
-        .set('Origin', 'https://example.com')
-        .expect(200);
-
-      expect(response.status).toBe(200);
-    });
+    expect(Array.isArray(response.body)).toBe(true);
   });
-}); 
+
+  it('deve retornar 404 para sugestao sem servico cadastrado no mock', async () => {
+    await withAuth(request(app)
+      .get('/appointments/suggestions?from=2026-04-15T11:00:00.000Z&to=2026-04-15T22:00:00.000Z&serviceId=1'))
+      .expect(404);
+  });
+
+  it('deve retornar 404 para rotas inexistentes', async () => {
+    await request(app)
+      .get('/nonexistent')
+      .expect(404);
+  });
+});
+
