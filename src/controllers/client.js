@@ -107,8 +107,14 @@ class ClientController {
       const offset = (page - 1) * limit;
 
       const where = { userId };
-      if (search) {
-        where.name = { [Op.like]: `%${search}%` };
+      if (search?.trim()) {
+        const term = `%${String(search).trim()}%`;
+        where[Op.or] = [
+          { name: { [Op.iLike]: term } },
+          { lastName: { [Op.iLike]: term } },
+          { email: { [Op.iLike]: term } },
+          { phone: { [Op.like]: term } },
+        ];
       }
 
       const { count, rows: clients } = await Client.findAndCountAll({
@@ -238,4 +244,3 @@ class ClientController {
 }
 
 export default ClientController;
-

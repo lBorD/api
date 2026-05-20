@@ -25,6 +25,8 @@ const DataTypes = {
 
 const Op = {
   like: Symbol.for('like'),
+  iLike: Symbol.for('iLike'),
+  in: Symbol.for('in'),
   gt: Symbol.for('gt'),
   lt: Symbol.for('lt'),
   ne: Symbol.for('ne'),
@@ -41,11 +43,16 @@ jest.mock('sequelize', () => {
       findOne: jest.fn().mockResolvedValue(null),
       findByPk: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
+      bulkCreate: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue([1]),
       destroy: jest.fn().mockResolvedValue(1),
       findAndCountAll: jest.fn().mockResolvedValue({ count: 0, rows: [] }),
+      belongsTo: jest.fn(),
+      hasMany: jest.fn(),
+      associations: {},
     }),
     sync: jest.fn().mockResolvedValue(),
+    transaction: jest.fn(async (callback) => callback({})),
   };
 
   const Sequelize = jest.fn(() => mSequelize);
@@ -123,9 +130,26 @@ jest.mock('./src/models/Appointment.js', () => ({
   default: {
     associations: {},
     belongsTo: jest.fn(),
+    hasMany: jest.fn(),
     findOne: jest.fn(),
     findByPk: jest.fn(),
     create: jest.fn(),
+    bulkCreate: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    findAll: jest.fn().mockResolvedValue([]),
+    findAndCountAll: jest.fn().mockResolvedValue({ count: 0, rows: [] }),
+  },
+}));
+
+jest.mock('./src/models/AppointmentService.js', () => ({
+  default: {
+    associations: {},
+    belongsTo: jest.fn(),
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    bulkCreate: jest.fn(),
     update: jest.fn(),
     destroy: jest.fn(),
     findAll: jest.fn().mockResolvedValue([]),
@@ -200,6 +224,7 @@ jest.mock('./src/config/db.js', () => ({
   default: {
     authenticate: jest.fn().mockResolvedValue(),
     sync: jest.fn().mockResolvedValue(),
+    transaction: jest.fn(async (callback) => callback({})),
   },
 }));
 
