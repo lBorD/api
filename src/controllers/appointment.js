@@ -1,5 +1,7 @@
-﻿import { Op } from 'sequelize';
+import { Op } from 'sequelize';
+import sequelize from '../config/db.js';
 import Appointment from '../models/Appointment.js';
+import AppointmentService from '../models/AppointmentService.js';
 import Client from '../models/Client.js';
 import Service from '../models/Service.js';
 
@@ -13,6 +15,22 @@ if (typeof Appointment?.belongsTo === 'function') {
 
   if (!Appointment.associations || !Appointment.associations.service) {
     Appointment.belongsTo(Service, { foreignKey: 'serviceId', as: 'service' });
+  }
+}
+
+if (typeof Appointment?.hasMany === 'function') {
+  if (!Appointment.associations || !Appointment.associations.services) {
+    Appointment.hasMany(AppointmentService, { foreignKey: 'appointmentId', as: 'services' });
+  }
+}
+
+if (typeof AppointmentService?.belongsTo === 'function') {
+  if (!AppointmentService.associations || !AppointmentService.associations.appointment) {
+    AppointmentService.belongsTo(Appointment, { foreignKey: 'appointmentId', as: 'appointment' });
+  }
+
+  if (!AppointmentService.associations || !AppointmentService.associations.service) {
+    AppointmentService.belongsTo(Service, { foreignKey: 'serviceId', as: 'service' });
   }
 }
 
@@ -36,22 +54,183 @@ const parseCurrency = (value, fallback = 0) => {
 
 const isOverlapping = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
-const toPayload = (appointment) => ({
-  id: appointment.id,
-  startAt: new Date(appointment.startAt).toISOString(),
-  endAt: new Date(appointment.endAt).toISOString(),
-  clientId: appointment.clientId,
-  serviceId: appointment.serviceId,
-  clientName: appointment.client?.name || null,
-  serviceName: appointment.service?.name || null,
-  price: Number(appointment.price),
-  depositAmount: appointment.depositAmount !== null && appointment.depositAmount !== undefined
-    ? Number(appointment.depositAmount)
-    : 0,
-  status: appointment.status,
-  notes: appointment.notes || '',
-  googleSyncStatus: appointment.googleSyncStatus,
-});
+const getModelValue = (item, key) => {
+  if (!item) {
+    return undefined;
+  }
+
+  if (typeof item.get === 'function') {
+    return item.get(key);
+  }
+
+  return item[key];
+};
+
+const getServiceSource = (data = {}) => (
+  data.serviceIds
+  ?? data['serviceIds[]']
+  ?? data.services
+  ?? data.serviceId
+);
+
+const hasServiceSelection = (data = {}) => getServiceSource(data) !== undefined;
+
+const flattenServiceIds = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenServiceIds);
+  }
+
+  if (typeof value === 'string' && value.includes(',')) {
+    return value.split(',').flatMap(flattenServiceIds);
+  }
+
+  if (typeof value === 'object') {
+    return flattenServiceIds(value.serviceId ?? value.id);
+  }
+
+  return [value];
+};
+
+const normalizeServiceIds = (data = {}, fallbackServiceId = null) => {
+  const source = getServiceSource(data) ?? fallbackServiceId;
+  const rawIds = flattenServiceIds(source);
+  const serviceIds = [];
+  const seen = new Set();
+
+  for (const rawId of rawIds) {
+    const serviceId = Number(rawId);
+
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
+      return null;
+    }
+
+    if (!seen.has(serviceId)) {
+      seen.add(serviceId);
+      serviceIds.push(serviceId);
+    }
+  }
+
+  return serviceIds;
+};
+
+const loadServicesByIds = async (userId, serviceIds) => {
+  const services = await Service.findAll({
+    where: {
+      id: { [Op.in]: serviceIds },
+      userId,
+      active: true,
+    },
+  });
+
+  const servicesById = new Map(services.map((service) => [Number(service.id), service]));
+  const orderedServices = serviceIds.map((serviceId) => servicesById.get(Number(serviceId)));
+
+  return orderedServices.every(Boolean) ? orderedServices : null;
+};
+
+const calculateServicesTotals = (services) => services.reduce((totals, service) => ({
+  price: totals.price + Number(service.price || 0),
+  estimatedTime: totals.estimatedTime + Number(service.estimatedTime || 0),
+}), { price: 0, estimatedTime: 0 });
+
+const buildAppointmentServiceRows = (appointmentId, services) => services.map((service, index) => ({
+  appointmentId,
+  serviceId: service.id,
+  serviceName: service.name,
+  price: service.price,
+  estimatedTime: service.estimatedTime,
+  sortOrder: index,
+}));
+
+const loadCurrentServiceIds = async (appointment) => {
+  const appointmentServices = await AppointmentService.findAll({
+    where: { appointmentId: appointment.id },
+    order: [['sortOrder', 'ASC'], ['id', 'ASC']],
+  });
+
+  if (appointmentServices.length > 0) {
+    return appointmentServices.map((item) => Number(item.serviceId));
+  }
+
+  return normalizeServiceIds({}, appointment.serviceId);
+};
+
+const normalizeAppointmentServicesForPayload = (appointment) => {
+  const appointmentServices = Array.isArray(appointment.services)
+    ? [...appointment.services].sort((a, b) => Number(getModelValue(a, 'sortOrder') || 0) - Number(getModelValue(b, 'sortOrder') || 0))
+    : [];
+  const services = appointmentServices
+    .map((item) => {
+      const serviceId = Number(getModelValue(item, 'serviceId'));
+
+      if (!serviceId) {
+        return null;
+      }
+
+      const name = getModelValue(item, 'serviceName') || getModelValue(item, 'name') || null;
+
+      return {
+        id: serviceId,
+        serviceId,
+        name,
+        serviceName: name,
+        price: Number(getModelValue(item, 'price') || 0),
+        estimatedTime: Number(getModelValue(item, 'estimatedTime') || 0),
+      };
+    })
+    .filter(Boolean);
+
+  if (services.length > 0) {
+    return services;
+  }
+
+  if (!appointment.serviceId) {
+    return [];
+  }
+
+  const legacyName = appointment.service?.name || null;
+
+  return [{
+    id: Number(appointment.serviceId),
+    serviceId: Number(appointment.serviceId),
+    name: legacyName,
+    serviceName: legacyName,
+    price: Number(appointment.price || 0),
+    estimatedTime: Number(appointment.service?.estimatedTime || 0),
+  }];
+};
+
+const toPayload = (appointment) => {
+  const services = normalizeAppointmentServicesForPayload(appointment);
+  const serviceIds = services.map((service) => service.serviceId);
+  const serviceName = services
+    .map((service) => service.name)
+    .filter(Boolean)
+    .join(' + ');
+
+  return {
+    id: appointment.id,
+    startAt: new Date(appointment.startAt).toISOString(),
+    endAt: new Date(appointment.endAt).toISOString(),
+    clientId: appointment.clientId,
+    serviceId: serviceIds[0] || appointment.serviceId,
+    serviceIds,
+    services,
+    clientName: appointment.client?.name || null,
+    serviceName: serviceName || appointment.service?.name || null,
+    price: Number(appointment.price),
+    depositAmount: appointment.depositAmount !== null && appointment.depositAmount !== undefined
+      ? Number(appointment.depositAmount)
+      : 0,
+    status: appointment.status,
+    notes: appointment.notes || '',
+    googleSyncStatus: appointment.googleSyncStatus,
+  };
+};
 
 const findConflict = async ({ userId, startAt, endAt, excludeId = null }) => {
   const where = {
@@ -68,12 +247,19 @@ const findConflict = async ({ userId, startAt, endAt, excludeId = null }) => {
   return Appointment.findOne({ where });
 };
 
+const appointmentIncludes = [
+  { model: Client, as: 'client', attributes: ['id', 'name', 'lastName'] },
+  { model: Service, as: 'service', attributes: ['id', 'name', 'estimatedTime'] },
+  {
+    model: AppointmentService,
+    as: 'services',
+    attributes: ['id', 'serviceId', 'serviceName', 'price', 'estimatedTime', 'sortOrder'],
+  },
+];
+
 const loadAppointmentWithRelations = async (id, userId) => Appointment.findOne({
   where: { id, userId },
-  include: [
-    { model: Client, as: 'client', attributes: ['id', 'name', 'lastName'] },
-    { model: Service, as: 'service', attributes: ['id', 'name', 'estimatedTime'] },
-  ],
+  include: appointmentIncludes,
 });
 
 class AppointmentController {
@@ -99,10 +285,7 @@ class AppointmentController {
           startAt: { [Op.lt]: toDate },
           endAt: { [Op.gt]: fromDate },
         },
-        include: [
-          { model: Client, as: 'client', attributes: ['id', 'name', 'lastName'] },
-          { model: Service, as: 'service', attributes: ['id', 'name', 'estimatedTime'] },
-        ],
+        include: appointmentIncludes,
         order: [['startAt', 'ASC']],
       });
 
@@ -118,14 +301,15 @@ class AppointmentController {
       const userId = AppointmentController.getUserId(req);
       const {
         clientId,
-        serviceId,
         startAt,
         depositAmount = 0,
         notes = '',
       } = req.body;
 
-      if (!clientId || !serviceId || !startAt) {
-        return res.status(400).json({ error: 'Campos obrigatorios: clientId, serviceId, startAt.' });
+      const serviceIds = normalizeServiceIds(req.body);
+
+      if (!clientId || !startAt || !serviceIds || serviceIds.length === 0) {
+        return res.status(400).json({ error: 'Campos obrigatorios: clientId, serviceIds, startAt.' });
       }
 
       const parsedStartAt = parseUtcDate(startAt);
@@ -138,20 +322,25 @@ class AppointmentController {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
-      const [client, service] = await Promise.all([
+      const [client, services] = await Promise.all([
         Client.findOne({ where: { id: clientId, userId } }),
-        Service.findOne({ where: { id: serviceId, userId, active: true } }),
+        loadServicesByIds(userId, serviceIds),
       ]);
 
       if (!client) {
         return res.status(404).json({ error: 'Cliente nao encontrado para este usuario.' });
       }
 
-      if (!service) {
-        return res.status(404).json({ error: 'Servico nao encontrado/ativo para este usuario.' });
+      if (!services) {
+        return res.status(404).json({ error: 'Um ou mais servicos nao foram encontrados/ativos para este usuario.' });
       }
 
-      const parsedEndAt = new Date(parsedStartAt.getTime() + Number(service.estimatedTime) * 60 * 1000);
+      const totals = calculateServicesTotals(services);
+      if (totals.estimatedTime <= 0) {
+        return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
+      }
+
+      const parsedEndAt = new Date(parsedStartAt.getTime() + totals.estimatedTime * 60 * 1000);
 
       const conflict = await findConflict({
         userId,
@@ -163,18 +352,27 @@ class AppointmentController {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
-      const appointment = await Appointment.create({
-        userId,
-        clientId,
-        serviceId,
-        startAt: parsedStartAt,
-        endAt: parsedEndAt,
-        price: service.price,
-        depositAmount: parsedDepositAmount,
-        status: 'scheduled',
-        notes,
-        source: 'app',
-        googleSyncStatus: 'pending',
+      const appointment = await sequelize.transaction(async (transaction) => {
+        const createdAppointment = await Appointment.create({
+          userId,
+          clientId,
+          serviceId: services[0].id,
+          startAt: parsedStartAt,
+          endAt: parsedEndAt,
+          price: totals.price,
+          depositAmount: parsedDepositAmount,
+          status: 'scheduled',
+          notes,
+          source: 'app',
+          googleSyncStatus: 'pending',
+        }, { transaction });
+
+        await AppointmentService.bulkCreate(
+          buildAppointmentServiceRows(createdAppointment.id, services),
+          { transaction },
+        );
+
+        return createdAppointment;
       });
 
       const created = await loadAppointmentWithRelations(appointment.id, userId);
@@ -196,7 +394,6 @@ class AppointmentController {
       }
 
       const nextClientId = req.body.clientId ?? appointment.clientId;
-      const nextServiceId = req.body.serviceId ?? appointment.serviceId;
       const nextStartAt = req.body.startAt ? parseUtcDate(req.body.startAt) : new Date(appointment.startAt);
 
       if (!nextStartAt) {
@@ -211,20 +408,33 @@ class AppointmentController {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
-      const [client, service] = await Promise.all([
+      const serviceIds = hasServiceSelection(req.body)
+        ? normalizeServiceIds(req.body)
+        : await loadCurrentServiceIds(appointment);
+
+      if (!serviceIds || serviceIds.length === 0) {
+        return res.status(400).json({ error: 'Informe ao menos um servico.' });
+      }
+
+      const [client, services] = await Promise.all([
         Client.findOne({ where: { id: nextClientId, userId } }),
-        Service.findOne({ where: { id: nextServiceId, userId, active: true } }),
+        loadServicesByIds(userId, serviceIds),
       ]);
 
       if (!client) {
         return res.status(404).json({ error: 'Cliente nao encontrado para este usuario.' });
       }
 
-      if (!service) {
-        return res.status(404).json({ error: 'Servico nao encontrado/ativo para este usuario.' });
+      if (!services) {
+        return res.status(404).json({ error: 'Um ou mais servicos nao foram encontrados/ativos para este usuario.' });
       }
 
-      const nextEndAt = new Date(nextStartAt.getTime() + Number(service.estimatedTime) * 60 * 1000);
+      const totals = calculateServicesTotals(services);
+      if (totals.estimatedTime <= 0) {
+        return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
+      }
+
+      const nextEndAt = new Date(nextStartAt.getTime() + totals.estimatedTime * 60 * 1000);
 
       const conflict = await findConflict({
         userId,
@@ -237,14 +447,26 @@ class AppointmentController {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
-      await appointment.update({
-        clientId: nextClientId,
-        serviceId: nextServiceId,
-        startAt: nextStartAt,
-        endAt: nextEndAt,
-        price: service.price,
-        depositAmount: parsedDepositAmount,
-        notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,
+      await sequelize.transaction(async (transaction) => {
+        await appointment.update({
+          clientId: nextClientId,
+          serviceId: services[0].id,
+          startAt: nextStartAt,
+          endAt: nextEndAt,
+          price: totals.price,
+          depositAmount: parsedDepositAmount,
+          notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,
+        }, { transaction });
+
+        await AppointmentService.destroy({
+          where: { appointmentId: appointment.id },
+          transaction,
+        });
+
+        await AppointmentService.bulkCreate(
+          buildAppointmentServiceRows(appointment.id, services),
+          { transaction },
+        );
       });
 
       const updated = await loadAppointmentWithRelations(appointment.id, userId);
@@ -283,10 +505,11 @@ class AppointmentController {
   static async suggestSlots(req, res) {
     try {
       const userId = AppointmentController.getUserId(req);
-      const { from, to, serviceId, excludeAppointmentId } = req.query;
+      const { from, to, excludeAppointmentId } = req.query;
+      const serviceIds = normalizeServiceIds(req.query);
 
-      if (!from || !to || !serviceId) {
-        return res.status(400).json({ error: 'Campos obrigatorios: from, to, serviceId.' });
+      if (!from || !to || !serviceIds || serviceIds.length === 0) {
+        return res.status(400).json({ error: 'Campos obrigatorios: from, to, serviceIds.' });
       }
 
       const fromDate = parseUtcDate(from);
@@ -296,9 +519,14 @@ class AppointmentController {
         return res.status(400).json({ error: 'Parametros from/to invalidos. Use ISO-8601 UTC.' });
       }
 
-      const service = await Service.findOne({ where: { id: serviceId, userId, active: true } });
-      if (!service) {
-        return res.status(404).json({ error: 'Servico nao encontrado/ativo para este usuario.' });
+      const services = await loadServicesByIds(userId, serviceIds);
+      if (!services) {
+        return res.status(404).json({ error: 'Um ou mais servicos nao foram encontrados/ativos para este usuario.' });
+      }
+
+      const totals = calculateServicesTotals(services);
+      if (totals.estimatedTime <= 0) {
+        return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
       }
 
       const busyWhere = {
@@ -319,7 +547,7 @@ class AppointmentController {
       });
 
       const suggestions = [];
-      const slotDurationMs = Number(service.estimatedTime) * 60 * 1000;
+      const slotDurationMs = totals.estimatedTime * 60 * 1000;
       const stepMs = SLOT_STEP_MINUTES * 60 * 1000;
 
       for (let cursor = fromDate.getTime(); cursor + slotDurationMs <= toDate.getTime(); cursor += stepMs) {
@@ -346,4 +574,3 @@ class AppointmentController {
 }
 
 export default AppointmentController;
-

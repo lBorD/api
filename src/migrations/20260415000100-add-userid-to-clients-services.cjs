@@ -64,41 +64,55 @@ module.exports = {
         onDelete: 'RESTRICT',
       }, { transaction });
 
-      const [adminRows] = await queryInterface.sequelize.query(
-        "SELECT id FROM users WHERE username = 'admin' ORDER BY id ASC LIMIT 1",
+      const [backfillRows] = await queryInterface.sequelize.query(
+        `
+          SELECT
+            (SELECT COUNT(*) FROM "Clients" WHERE "userId" IS NULL)::int AS "clientsCount",
+            (SELECT COUNT(*) FROM services WHERE "userId" IS NULL)::int AS "servicesCount"
+        `,
         { transaction },
       );
 
-      let defaultUserId = adminRows?.[0]?.id;
+      const needsBackfill = Number(backfillRows?.[0]?.clientsCount || 0) > 0
+        || Number(backfillRows?.[0]?.servicesCount || 0) > 0;
 
-      if (!defaultUserId) {
-        const [firstUserRows] = await queryInterface.sequelize.query(
-          'SELECT id FROM users ORDER BY id ASC LIMIT 1',
+      if (needsBackfill) {
+        const [adminRows] = await queryInterface.sequelize.query(
+          "SELECT id FROM users WHERE username = 'admin' ORDER BY id ASC LIMIT 1",
           { transaction },
         );
 
-        defaultUserId = firstUserRows?.[0]?.id;
+        let defaultUserId = adminRows?.[0]?.id;
+
+        if (!defaultUserId) {
+          const [firstUserRows] = await queryInterface.sequelize.query(
+            'SELECT id FROM users ORDER BY id ASC LIMIT 1',
+            { transaction },
+          );
+
+          defaultUserId = firstUserRows?.[0]?.id;
+        }
+
+        if (!defaultUserId) {
+          throw new Error('Nenhum usuario encontrado para backfill de clients/services.');
+        }
+
+        await queryInterface.sequelize.query(
+          'UPDATE "Clients" SET "userId" = :defaultUserId WHERE "userId" IS NULL',
+          {
+            replacements: { defaultUserId },
+            transaction,
+          },
+        );
+
+        await queryInterface.sequelize.query(
+          'UPDATE services SET "userId" = :defaultUserId WHERE "userId" IS NULL',
+          {
+            replacements: { defaultUserId },
+            transaction,
+          },
+        );
       }
-
-      if (!defaultUserId) {
-        throw new Error('Nenhum usuario encontrado para backfill de clients/services.');
-      }
-
-      await queryInterface.sequelize.query(
-        'UPDATE "Clients" SET "userId" = :defaultUserId WHERE "userId" IS NULL',
-        {
-          replacements: { defaultUserId },
-          transaction,
-        },
-      );
-
-      await queryInterface.sequelize.query(
-        'UPDATE services SET "userId" = :defaultUserId WHERE "userId" IS NULL',
-        {
-          replacements: { defaultUserId },
-          transaction,
-        },
-      );
 
       const possibleEmailConstraints = ['Clients_email_key', 'clients_email_key', 'clients_email_unique_legacy'];
       for (const constraintName of possibleEmailConstraints) {
