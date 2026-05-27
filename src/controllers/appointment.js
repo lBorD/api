@@ -7,6 +7,7 @@ import Service from '../models/Service.js';
 
 const ALLOWED_STATUS = ['scheduled', 'canceled', 'completed'];
 const SLOT_STEP_MINUTES = 30;
+const DEFAULT_DEPOSIT_RATE = 0.3;
 
 if (typeof Appointment?.belongsTo === 'function') {
   if (!Appointment.associations || !Appointment.associations.client) {
@@ -48,9 +49,14 @@ const parseCurrency = (value, fallback = 0) => {
     return fallback;
   }
 
-  const parsed = Number(value);
+  const normalizedValue = typeof value === 'string' ? value.replace(',', '.') : value;
+  const parsed = Number(normalizedValue);
   return Number.isNaN(parsed) ? null : parsed;
 };
+
+const roundCurrency = (value = 0) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
+const calculateDefaultDepositAmount = (price = 0) => roundCurrency(Number(price || 0) * DEFAULT_DEPOSIT_RATE);
 
 const isOverlapping = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
@@ -302,9 +308,9 @@ class AppointmentController {
       const {
         clientId,
         startAt,
-        depositAmount = 0,
         notes = '',
       } = req.body;
+      const { depositAmount } = req.body;
 
       const serviceIds = normalizeServiceIds(req.body);
 
@@ -317,8 +323,10 @@ class AppointmentController {
         return res.status(400).json({ error: 'startAt invalido. Use ISO-8601 UTC.' });
       }
 
-      const parsedDepositAmount = parseCurrency(depositAmount, 0);
-      if (parsedDepositAmount === null || parsedDepositAmount < 0) {
+      const hasDepositAmount = depositAmount !== undefined && depositAmount !== null && depositAmount !== '';
+      const parsedDepositAmount = hasDepositAmount ? parseCurrency(depositAmount, 0) : null;
+
+      if (hasDepositAmount && (parsedDepositAmount === null || parsedDepositAmount < 0)) {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
@@ -341,6 +349,7 @@ class AppointmentController {
       }
 
       const parsedEndAt = new Date(parsedStartAt.getTime() + totals.estimatedTime * 60 * 1000);
+      const appointmentDepositAmount = parsedDepositAmount ?? calculateDefaultDepositAmount(totals.price);
 
       const conflict = await findConflict({
         userId,
@@ -360,7 +369,7 @@ class AppointmentController {
           startAt: parsedStartAt,
           endAt: parsedEndAt,
           price: totals.price,
-          depositAmount: parsedDepositAmount,
+          depositAmount: appointmentDepositAmount,
           status: 'scheduled',
           notes,
           source: 'app',
