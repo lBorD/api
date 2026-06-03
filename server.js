@@ -1,8 +1,15 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import express from 'express';
-import sequelize from './src/config/db.js';
-import { authRoutes, clientRoutes, userRoutes } from './src/routes/index.js';
 import cors from 'cors';
+import sequelize from './src/config/db.js';
+import {
+  authRoutes,
+  clientRoutes,
+  serviceRoutes,
+  appointmentRoutes,
+  googleCalendarIntegrationRoutes,
+  userRoutes,
+} from './src/routes/index.js';
 
 const app = express();
 app.use(express.json());
@@ -18,7 +25,7 @@ sequelize.authenticate()
   .then(() => {
     console.log('==== Conectado com o banco de dados!  ==== ');
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('==== Não foi possível conectar com o banco de dados!  ==== ', err);
   });
 
@@ -26,36 +33,19 @@ sequelize.sync()
   .then(() => {
     console.log('==== Banco de dados sincronizado com sucesso! ==== ');
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('==== Não foi possível sincronizar com o banco de dados!', err);
   });
 
 app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
+app.use('/services', serviceRoutes);
+app.use('/appointments', appointmentRoutes);
+app.use('/integrations/google-calendar', googleCalendarIntegrationRoutes);
 app.use('/users', userRoutes);
 
-// Middleware de tratamento de erros global
-app.use((err, req, res, next) => {
-  console.error('Erro capturado pelo middleware global:', {
-    message: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
-    body: req.body
-  });
-  
-  res.status(500).json({ 
-    message: 'Erro interno do servidor',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Erro interno'
-  });
-});
+const port = process.env.PORT || 3000;
 
-// Middleware para rotas não encontradas
-app.use('*', (req, res) => {
-  console.log(`Rota não encontrada: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ message: 'Rota não encontrada' });
-});
-
-app.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000');
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
 });

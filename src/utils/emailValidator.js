@@ -1,14 +1,20 @@
-import Client from '../models/Client.js';
+﻿import Client from '../models/Client.js';
 import { Op } from 'sequelize';
 
-export const existingClient = async (email, excludeId = null) => {
-  const query = { where: { email } };
+export const existingClient = async (email, excludeId = null, userId = null) => {
+  const where = { email };
 
   if (excludeId) {
-    query.where.id = { [Op.ne]: excludeId };
+    where.id = { [Op.ne]: excludeId };
   }
 
-  return await Client.findOne(query) !== null;
+  if (userId) {
+    where.userId = userId;
+  }
+
+  const query = { where };
+  return (await Client.findOne(query)) !== null;
 };
 
 export default existingClient;
+

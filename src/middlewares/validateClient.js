@@ -1,11 +1,12 @@
-import validator from 'validator';
+﻿import validator from 'validator';
 import { isValidPhoneNumber } from '../utils/phoneValidator.js';
 import { existingClient } from '../utils/emailValidator.js';
 
 const validateClient = async (req, res, next) => {
   const { email, name, phone, birthDate } = req.body;
+  const userId = req.user?.id;
 
-  const emailExists = await existingClient(email);
+  const emailExists = await existingClient(email, null, userId);
 
   const validations = [
     { condition: !email, message: "É necessário fornecer o e-mail para finalizar o registro." },
@@ -19,12 +20,13 @@ const validateClient = async (req, res, next) => {
     { condition: new Date(birthDate) > new Date(), message: "Data de nascimento não pode ser no futuro." }
   ];
 
-  const error = validations.find(v => v.condition);
+  const error = validations.find((v) => v.condition);
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
-  next();
+  return next();
 };
 
 export default validateClient;
+

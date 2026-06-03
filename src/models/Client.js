@@ -1,11 +1,15 @@
-import { DataTypes } from 'sequelize';
+﻿import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js';
 
-const Client = sequelize.define("Client", {
+const Client = sequelize.define('Client', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true,
+  },
+  userId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   },
   name: {
     type: DataTypes.STRING,
@@ -22,7 +26,6 @@ const Client = sequelize.define("Client", {
   email: {
     type: DataTypes.STRING,
     allowNull: true,
-    unique: true,
   },
   address: {
     type: DataTypes.STRING,
@@ -31,7 +34,11 @@ const Client = sequelize.define("Client", {
   birthDate: {
     type: DataTypes.DATE,
     allowNull: true,
-  }
+  },
+}, {
+  tableName: 'Clients',
+  timestamps: true,
 });
 
 export default Client;
+

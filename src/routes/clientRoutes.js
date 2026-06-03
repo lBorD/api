@@ -1,21 +1,25 @@
-import express from 'express';
+﻿import express from 'express';
 import ClientController from '../controllers/client.js';
 import validateClient from '../middlewares/validateClient.js';
 import validateClientUpdate from '../middlewares/validateClientUpdate.js';
+import { authenticateToken } from '../middlewares/auth.js';
 
 const router = express.Router();
 
+router.use(authenticateToken);
+
 // Rotas de clientes CRUD
-router.post('/register', validateClient, ClientController.registerClient); // Registrar cliente OK
-router.patch('/update/:id', validateClientUpdate, ClientController.updateClient); // Atualizar cliente OK
-router.delete('/delete/:id', ClientController.deleteClient); // Eliminar cliente OK
+router.post('/register', validateClient, ClientController.registerClient);
+router.patch('/update/:id', validateClientUpdate, ClientController.updateClient);
+router.delete('/delete/:id', ClientController.deleteClient);
 
 // Rotas de pesquisa de clientes
-router.get('/search/sync', ClientController.listClientsSync); // Listar clientes por email OK
-router.get('/search/by-name', ClientController.listClientsByName); // Listar clientes por nome OK
-router.get('/search/by-lastname', ClientController.listClientsByLastName);   // Listar clientes por sobrenome OK
-router.get('/search/by-phone', ClientController.listClientsByPhone); // Listar clientes por telefone OK
-router.get('/search/by-id/:id', ClientController.getClientById); // Consultar cliente por ID OK
-router.get('/search', ClientController.listClients); // Listar clientes OK
+router.get('/search/sync', ClientController.listClientsSync);
+router.get('/search/by-name', ClientController.listClientsByName);
+router.get('/search/by-lastname', ClientController.listClientsByLastName);
+router.get('/search/by-phone', ClientController.listClientsByPhone);
+router.get('/search/by-id/:id', ClientController.getClientById);
+router.get('/search', ClientController.listClients);
 
 export default router;
+
