@@ -54,6 +54,10 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  googleCalendarId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   googleSyncStatus: {
     type: DataTypes.STRING,
     allowNull: false,

@@ -157,6 +157,17 @@ jest.mock('./src/models/AppointmentService.js', () => ({
   },
 }));
 
+jest.mock('./src/models/CalendarConnection.js', () => ({
+  default: {
+    findOne: jest.fn().mockResolvedValue(null),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    findAll: jest.fn().mockResolvedValue([]),
+  },
+}));
+
 jest.mock('./src/utils/phoneValidator.js', () => ({
   isValidPhoneNumber: jest.fn().mockReturnValue({ isValid: true, formatted: '+5511999999999' }),
 }));
@@ -203,7 +214,6 @@ jest.mock('./src/controllers/service.js', () => ({
 jest.mock('./src/controllers/appointment.js', () => ({
   default: {
     listAppointments: jest.fn((req, res) => res.status(200).json([])),
-    suggestSlots: jest.fn((req, res) => res.status(200).json([])),
     createAppointment: jest.fn((req, res) => res.status(201).json({ id: 1 })),
     updateAppointment: jest.fn((req, res) => res.status(200).json({ id: 1 })),
     updateAppointmentStatus: jest.fn((req, res) => res.status(200).json({ id: 1, status: req.body.status })),

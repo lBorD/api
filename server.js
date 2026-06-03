@@ -2,11 +2,24 @@
 import express from 'express';
 import cors from 'cors';
 import sequelize from './src/config/db.js';
-import { authRoutes, clientRoutes, serviceRoutes, appointmentRoutes, userRoutes } from './src/routes/index.js';
+import {
+  authRoutes,
+  clientRoutes,
+  serviceRoutes,
+  appointmentRoutes,
+  googleCalendarIntegrationRoutes,
+  userRoutes,
+} from './src/routes/index.js';
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+// Middleware para log de requisições
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
 
 sequelize.authenticate()
   .then(() => {
@@ -28,6 +41,7 @@ app.use('/auth', authRoutes);
 app.use('/clients', clientRoutes);
 app.use('/services', serviceRoutes);
 app.use('/appointments', appointmentRoutes);
+app.use('/integrations/google-calendar', googleCalendarIntegrationRoutes);
 app.use('/users', userRoutes);
 
 const port = process.env.PORT || 3000;
