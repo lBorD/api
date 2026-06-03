@@ -3,8 +3,10 @@ import express from 'express';
 import AppointmentController from '../../src/controllers/appointment.js';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
+import CalendarConnection from '../../src/models/CalendarConnection.js';
 import Client from '../../src/models/Client.js';
 import Service from '../../src/models/Service.js';
+import { encryptToken } from '../../src/services/googleTokenCrypto.js';
 
 const app = express();
 app.use(express.json());
@@ -22,7 +24,7 @@ const service = {
   estimatedTime: 60,
 };
 
-const buildLoadedAppointment = (depositAmount) => ({
+const buildLoadedAppointment = (depositAmount, googleSyncStatus = 'disabled') => ({
   id: 10,
   startAt: new Date('2026-06-01T14:00:00.000Z'),
   endAt: new Date('2026-06-01T15:00:00.000Z'),
@@ -32,7 +34,11 @@ const buildLoadedAppointment = (depositAmount) => ({
   depositAmount,
   status: 'scheduled',
   notes: '',
-  googleSyncStatus: 'pending',
+  googleSyncStatus,
+  googleEventId: null,
+  googleCalendarId: null,
+  lastSyncedAt: null,
+  syncError: null,
   client: { id: 1, name: 'Ana', lastName: 'Silva' },
   services: [{
     id: 1,
@@ -76,6 +82,10 @@ describe('AppointmentController', () => {
     jest.clearAllMocks();
     Service.findAll.mockImplementation(() => Promise.resolve([service]));
     AppointmentService.bulkCreate.mockImplementation(() => Promise.resolve([]));
+    CalendarConnection.findOne.mockResolvedValue(null);
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'google-client-id';
+    process.env.GOOGLE_TOKEN_ENCRYPTION_KEY = '12345678901234567890123456789012';
+    global.fetch = jest.fn();
   });
 
   it('usa 30% do valor total como sinal padrão ao criar agendamento', async () => {
@@ -123,5 +133,47 @@ describe('AppointmentController', () => {
       expect.any(Object),
     );
     expect(response.body.depositAmount).toBe(0);
+  });
+
+  it('mantem criacao local quando Google Calendar falha depois do salvamento', async () => {
+    const connection = {
+      userId: 1,
+      provider: 'google',
+      enabled: true,
+      calendarId: 'primary',
+      accessTokenEncrypted: encryptToken('access-token'),
+      refreshTokenEncrypted: encryptToken('refresh-token'),
+      accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    CalendarConnection.findOne.mockResolvedValue(connection);
+    configureFindOneMocks(buildLoadedAppointment(60, 'pending'));
+    Appointment.create.mockResolvedValue({ id: 10 });
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      text: async () => JSON.stringify({ error: { message: 'Google indisponivel' } }),
+    });
+
+    const response = await request(app)
+      .post('/appointments')
+      .send({
+        clientId: 1,
+        serviceIds: [service.id],
+        startAt: '2026-06-01T14:00:00.000Z',
+      })
+      .expect(201);
+
+    expect(response.body.googleSyncStatus).toBe('pending');
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(Appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        googleSyncStatus: 'failed',
+        syncError: expect.any(String),
+      }),
+      expect.objectContaining({ where: { id: 10 } }),
+    );
   });
 });

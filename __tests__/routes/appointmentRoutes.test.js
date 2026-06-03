@@ -42,12 +42,6 @@ describe('Appointment Routes', () => {
       .expect(404);
   });
 
-  it('deve retornar 404 ao listar sugestoes sem servico no mock', async () => {
-    await withAuth(request(app)
-      .get('/appointments/suggestions?from=2026-04-15T11:00:00.000Z&to=2026-04-15T22:00:00.000Z&serviceId=1'))
-      .expect(404);
-  });
-
   it('deve retornar 401 sem token', async () => {
     await request(app)
       .get('/appointments?from=2026-04-15T00:00:00.000Z&to=2026-04-15T23:59:59.999Z')

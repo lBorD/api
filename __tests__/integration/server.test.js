@@ -70,12 +70,6 @@ describe('Server Integration Tests', () => {
     expect(Array.isArray(response.body)).toBe(true);
   });
 
-  it('deve retornar 404 para sugestao sem servico cadastrado no mock', async () => {
-    await withAuth(request(app)
-      .get('/appointments/suggestions?from=2026-04-15T11:00:00.000Z&to=2026-04-15T22:00:00.000Z&serviceId=1'))
-      .expect(404);
-  });
-
   it('deve retornar 404 para rotas inexistentes', async () => {
     await request(app)
       .get('/nonexistent')

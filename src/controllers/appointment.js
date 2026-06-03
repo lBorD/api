@@ -4,9 +4,12 @@ import Appointment from '../models/Appointment.js';
 import AppointmentService from '../models/AppointmentService.js';
 import Client from '../models/Client.js';
 import Service from '../models/Service.js';
+import {
+  getInitialGoogleSyncStatus,
+  queueAppointmentGoogleSync,
+} from '../services/googleCalendarSyncService.js';
 
 const ALLOWED_STATUS = ['scheduled', 'canceled', 'completed'];
-const SLOT_STEP_MINUTES = 30;
 const DEFAULT_DEPOSIT_RATE = 0.3;
 
 if (typeof Appointment?.belongsTo === 'function') {
@@ -57,8 +60,6 @@ const parseCurrency = (value, fallback = 0) => {
 const roundCurrency = (value = 0) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const calculateDefaultDepositAmount = (price = 0) => roundCurrency(Number(price || 0) * DEFAULT_DEPOSIT_RATE);
-
-const isOverlapping = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
 const getModelValue = (item, key) => {
   if (!item) {
@@ -234,7 +235,11 @@ const toPayload = (appointment) => {
       : 0,
     status: appointment.status,
     notes: appointment.notes || '',
+    googleEventId: appointment.googleEventId || null,
+    googleCalendarId: appointment.googleCalendarId || null,
     googleSyncStatus: appointment.googleSyncStatus,
+    lastSyncedAt: appointment.lastSyncedAt ? new Date(appointment.lastSyncedAt).toISOString() : null,
+    syncError: appointment.syncError || null,
   };
 };
 
@@ -254,7 +259,7 @@ const findConflict = async ({ userId, startAt, endAt, excludeId = null }) => {
 };
 
 const appointmentIncludes = [
-  { model: Client, as: 'client', attributes: ['id', 'name', 'lastName'] },
+  { model: Client, as: 'client', attributes: ['id', 'name', 'lastName', 'phone'] },
   { model: Service, as: 'service', attributes: ['id', 'name', 'estimatedTime'] },
   {
     model: AppointmentService,
@@ -361,6 +366,8 @@ class AppointmentController {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
+      const googleSyncStatus = await getInitialGoogleSyncStatus(userId);
+
       const appointment = await sequelize.transaction(async (transaction) => {
         const createdAppointment = await Appointment.create({
           userId,
@@ -373,7 +380,8 @@ class AppointmentController {
           status: 'scheduled',
           notes,
           source: 'app',
-          googleSyncStatus: 'pending',
+          googleSyncStatus,
+          syncError: null,
         }, { transaction });
 
         await AppointmentService.bulkCreate(
@@ -385,6 +393,10 @@ class AppointmentController {
       });
 
       const created = await loadAppointmentWithRelations(appointment.id, userId);
+      if (created.googleSyncStatus === 'pending') {
+        queueAppointmentGoogleSync({ appointment: created, userId, action: 'upsert' });
+      }
+
       return res.status(201).json(toPayload(created));
     } catch (error) {
       console.error('Erro ao criar agendamento:', error);
@@ -456,6 +468,8 @@ class AppointmentController {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
+      const googleSyncStatus = await getInitialGoogleSyncStatus(userId);
+
       await sequelize.transaction(async (transaction) => {
         await appointment.update({
           clientId: nextClientId,
@@ -465,6 +479,8 @@ class AppointmentController {
           price: totals.price,
           depositAmount: parsedDepositAmount,
           notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,
+          googleSyncStatus,
+          syncError: null,
         }, { transaction });
 
         await AppointmentService.destroy({
@@ -479,6 +495,10 @@ class AppointmentController {
       });
 
       const updated = await loadAppointmentWithRelations(appointment.id, userId);
+      if (updated.googleSyncStatus === 'pending') {
+        queueAppointmentGoogleSync({ appointment: updated, userId, action: 'upsert' });
+      }
+
       return res.status(200).json(toPayload(updated));
     } catch (error) {
       console.error('Erro ao atualizar agendamento:', error);
@@ -501,9 +521,28 @@ class AppointmentController {
         return res.status(404).json({ error: 'Agendamento nao encontrado.' });
       }
 
-      await appointment.update({ status });
+      const shouldSyncStatus = status === 'canceled' || status === 'scheduled';
+      const googleSyncStatus = shouldSyncStatus
+        ? await getInitialGoogleSyncStatus(userId)
+        : appointment.googleSyncStatus;
+      const updateValues = { status };
+
+      if (shouldSyncStatus) {
+        updateValues.googleSyncStatus = googleSyncStatus;
+        updateValues.syncError = null;
+      }
+
+      await appointment.update(updateValues);
 
       const updated = await loadAppointmentWithRelations(appointment.id, userId);
+      if (shouldSyncStatus && updated.googleSyncStatus === 'pending') {
+        queueAppointmentGoogleSync({
+          appointment: updated,
+          userId,
+          action: status === 'canceled' ? 'cancel' : 'upsert',
+        });
+      }
+
       return res.status(200).json(toPayload(updated));
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
@@ -511,75 +550,6 @@ class AppointmentController {
     }
   }
 
-  static async suggestSlots(req, res) {
-    try {
-      const userId = AppointmentController.getUserId(req);
-      const { from, to, excludeAppointmentId } = req.query;
-      const serviceIds = normalizeServiceIds(req.query);
-
-      if (!from || !to || !serviceIds || serviceIds.length === 0) {
-        return res.status(400).json({ error: 'Campos obrigatorios: from, to, serviceIds.' });
-      }
-
-      const fromDate = parseUtcDate(from);
-      const toDate = parseUtcDate(to);
-
-      if (!fromDate || !toDate || fromDate >= toDate) {
-        return res.status(400).json({ error: 'Parametros from/to invalidos. Use ISO-8601 UTC.' });
-      }
-
-      const services = await loadServicesByIds(userId, serviceIds);
-      if (!services) {
-        return res.status(404).json({ error: 'Um ou mais servicos nao foram encontrados/ativos para este usuario.' });
-      }
-
-      const totals = calculateServicesTotals(services);
-      if (totals.estimatedTime <= 0) {
-        return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
-      }
-
-      const busyWhere = {
-        userId,
-        status: { [Op.ne]: 'canceled' },
-        startAt: { [Op.lt]: toDate },
-        endAt: { [Op.gt]: fromDate },
-      };
-
-      if (excludeAppointmentId) {
-        busyWhere.id = { [Op.ne]: Number(excludeAppointmentId) };
-      }
-
-      const busyAppointments = await Appointment.findAll({
-        where: busyWhere,
-        attributes: ['startAt', 'endAt'],
-        order: [['startAt', 'ASC']],
-      });
-
-      const suggestions = [];
-      const slotDurationMs = totals.estimatedTime * 60 * 1000;
-      const stepMs = SLOT_STEP_MINUTES * 60 * 1000;
-
-      for (let cursor = fromDate.getTime(); cursor + slotDurationMs <= toDate.getTime(); cursor += stepMs) {
-        const candidateStart = new Date(cursor);
-        const candidateEnd = new Date(cursor + slotDurationMs);
-
-        const hasConflict = busyAppointments.some((item) => {
-          const busyStart = new Date(item.startAt);
-          const busyEnd = new Date(item.endAt);
-          return isOverlapping(candidateStart, candidateEnd, busyStart, busyEnd);
-        });
-
-        if (!hasConflict) {
-          suggestions.push({ startAt: candidateStart.toISOString() });
-        }
-      }
-
-      return res.status(200).json(suggestions);
-    } catch (error) {
-      console.error('Erro ao sugerir horarios:', error);
-      return res.status(500).json({ error: 'Erro ao sugerir horarios.' });
-    }
-  }
 }
 
 export default AppointmentController;

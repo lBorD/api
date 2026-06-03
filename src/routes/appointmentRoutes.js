@@ -7,7 +7,6 @@ const router = express.Router();
 router.use(authenticateToken);
 
 router.get('/', AppointmentController.listAppointments);
-router.get('/suggestions', AppointmentController.suggestSlots);
 router.post('/', AppointmentController.createAppointment);
 router.patch('/:id', AppointmentController.updateAppointment);
 router.patch('/:id/status', AppointmentController.updateAppointmentStatus);
