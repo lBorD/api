@@ -15,6 +15,12 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// Middleware para log de requisições
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
+
 sequelize.authenticate()
   .then(() => {
     console.log('==== Conectado com o banco de dados!  ==== ');
