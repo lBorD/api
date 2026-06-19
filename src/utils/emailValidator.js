@@ -2,7 +2,13 @@
 import { Op } from 'sequelize';
 
 export const existingClient = async (email, excludeId = null, userId = null) => {
-  const where = { email };
+  const normalizedEmail = typeof email === 'string' ? email.trim() : email;
+
+  if (!normalizedEmail) {
+    return false;
+  }
+
+  const where = { email: normalizedEmail };
 
   if (excludeId) {
     where.id = { [Op.ne]: excludeId };
