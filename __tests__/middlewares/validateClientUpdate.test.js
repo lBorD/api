@@ -1,9 +1,9 @@
-﻿import request from 'supertest';
+import request from 'supertest';
 import express from 'express';
 import validator from 'validator';
 import Client from '../../src/models/Client.js';
 import { isValidPhoneNumber } from '../../src/utils/phoneValidator.js';
-import validateClient from '../../src/middlewares/validateClient.js';
+import validateClientUpdate from '../../src/middlewares/validateClientUpdate.js';
 
 const app = express();
 app.use(express.json());
@@ -11,7 +11,7 @@ app.use((req, res, next) => {
   req.user = { id: 1 };
   next();
 });
-app.post('/client', validateClient, (req, res) => res.status(200).json({ success: true, body: req.body }));
+app.patch('/client/:id', validateClientUpdate, (req, res) => res.status(200).json({ success: true, body: req.body }));
 
 const validPayload = {
   email: 'test@example.com',
@@ -20,7 +20,7 @@ const validPayload = {
   birthDate: '1990-01-01',
 };
 
-describe('validateClient Middleware', () => {
+describe('validateClientUpdate Middleware', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -41,19 +41,19 @@ describe('validateClient Middleware', () => {
     }
   });
 
-  it('deve permitir payload valido', async () => {
+  it('deve permitir payload valido e normalizar email', async () => {
     const response = await request(app)
-      .post('/client')
-      .send(validPayload)
+      .patch('/client/1')
+      .send({ ...validPayload, email: '  test@example.com  ' })
       .expect(200);
 
     expect(response.body).toHaveProperty('success', true);
     expect(response.body.body).toHaveProperty('email', validPayload.email);
   });
 
-  it('deve permitir quando faltar email', async () => {
+  it('deve permitir email em branco', async () => {
     const response = await request(app)
-      .post('/client')
+      .patch('/client/1')
       .send({ ...validPayload, email: '' })
       .expect(200);
 
@@ -65,7 +65,7 @@ describe('validateClient Middleware', () => {
     const { email, ...payloadWithoutEmail } = validPayload;
 
     const response = await request(app)
-      .post('/client')
+      .patch('/client/1')
       .send(payloadWithoutEmail)
       .expect(200);
 
@@ -73,13 +73,13 @@ describe('validateClient Middleware', () => {
     expect(response.body.body).toHaveProperty('email', null);
   });
 
-  it('deve bloquear email invalido', async () => {
+  it('deve bloquear email invalido quando preenchido', async () => {
     if (jest.isMockFunction(validator.isEmail)) {
       validator.isEmail.mockReturnValueOnce(false);
     }
 
     const response = await request(app)
-      .post('/client')
+      .patch('/client/1')
       .send(validPayload)
       .expect(400);
 
@@ -92,33 +92,10 @@ describe('validateClient Middleware', () => {
     }
 
     const response = await request(app)
-      .post('/client')
-      .send(validPayload)
-      .expect(400);
-
-    expect(response.body).toHaveProperty('error');
-  });
-
-  it('deve bloquear telefone invalido', async () => {
-    const response = await request(app)
-      .post('/client')
-      .send({ ...validPayload, phone: 'abc' })
-      .expect(400);
-
-    expect(response.body).toHaveProperty('error');
-  });
-
-  it('deve bloquear data invalida', async () => {
-    if (jest.isMockFunction(validator.isDate)) {
-      validator.isDate.mockReturnValueOnce(false);
-    }
-
-    const response = await request(app)
-      .post('/client')
+      .patch('/client/1')
       .send(validPayload)
       .expect(400);
 
     expect(response.body).toHaveProperty('error');
   });
 });
-
