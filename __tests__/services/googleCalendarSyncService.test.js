@@ -76,6 +76,11 @@ describe('googleCalendarSyncService', () => {
         }),
       }),
     );
+    const eventPayload = JSON.parse(global.fetch.mock.calls[1][1].body);
+    const description = eventPayload.description.replace(/\u00a0/g, ' ');
+    expect(description).toContain('Valor: R$ 200,00');
+    expect(description).toContain('Sinal: R$ 60,00');
+    expect(description).toContain('Falta pagar: R$ 140,00');
     expect(appointment.update).toHaveBeenCalledWith(expect.objectContaining({
       googleCalendarId: 'primary',
       googleEventId: 'google-event-1',
