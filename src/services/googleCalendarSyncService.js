@@ -117,8 +117,16 @@ const formatCurrency = (value = 0) => Number(value || 0).toLocaleString('pt-BR',
   currency: 'BRL',
 });
 
+const calculateRemainingAmount = (price = 0, depositAmount = 0) => {
+  const total = Math.max(Number(price || 0), 0);
+  const deposit = Math.max(Number(depositAmount || 0), 0);
+  return Math.round((Math.max(total - deposit, 0) + Number.EPSILON) * 100) / 100;
+};
+
 const buildDescription = (appointment) => {
   const client = getModelValue(appointment, 'client');
+  const price = getModelValue(appointment, 'price');
+  const depositAmount = getModelValue(appointment, 'depositAmount');
   const lines = [
     'Agendamento criado pelo BeautyApp.',
     `Cliente: ${getModelValue(client, 'name') || 'Cliente'}`,
@@ -130,8 +138,9 @@ const buildDescription = (appointment) => {
   }
 
   lines.push(`Servicos: ${buildServiceName(appointment)}`);
-  lines.push(`Valor: ${formatCurrency(getModelValue(appointment, 'price'))}`);
-  lines.push(`Sinal: ${formatCurrency(getModelValue(appointment, 'depositAmount'))}`);
+  lines.push(`Valor: ${formatCurrency(price)}`);
+  lines.push(`Sinal: ${formatCurrency(depositAmount)}`);
+  lines.push(`Falta pagar: ${formatCurrency(calculateRemainingAmount(price, depositAmount))}`);
 
   const notes = getModelValue(appointment, 'notes');
   if (notes) {
