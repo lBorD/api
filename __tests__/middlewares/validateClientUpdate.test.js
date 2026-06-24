@@ -73,6 +73,30 @@ describe('validateClientUpdate Middleware', () => {
     expect(response.body.body).toHaveProperty('email', null);
   });
 
+  it('deve permitir telefone e data de nascimento omitidos', async () => {
+    const { phone, birthDate, ...payloadWithoutOptionalFields } = validPayload;
+
+    const response = await request(app)
+      .patch('/client/1')
+      .send(payloadWithoutOptionalFields)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body.body).toHaveProperty('phone', null);
+    expect(response.body.body).toHaveProperty('birthDate', null);
+  });
+
+  it('deve permitir telefone e data de nascimento em branco', async () => {
+    const response = await request(app)
+      .patch('/client/1')
+      .send({ ...validPayload, phone: '', birthDate: '' })
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body.body).toHaveProperty('phone', null);
+    expect(response.body.body).toHaveProperty('birthDate', null);
+  });
+
   it('deve bloquear email invalido quando preenchido', async () => {
     if (jest.isMockFunction(validator.isEmail)) {
       validator.isEmail.mockReturnValueOnce(false);
@@ -89,6 +113,32 @@ describe('validateClientUpdate Middleware', () => {
   it('deve bloquear email ja existente para usuario', async () => {
     if (jest.isMockFunction(Client.findOne)) {
       Client.findOne.mockResolvedValueOnce({ id: 2 });
+    }
+
+    const response = await request(app)
+      .patch('/client/1')
+      .send(validPayload)
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
+
+  it('deve bloquear telefone invalido quando preenchido', async () => {
+    if (jest.isMockFunction(isValidPhoneNumber)) {
+      isValidPhoneNumber.mockReturnValueOnce({ isValid: false, formatted: null });
+    }
+
+    const response = await request(app)
+      .patch('/client/1')
+      .send({ ...validPayload, phone: 'abc' })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
+
+  it('deve bloquear data invalida quando preenchida', async () => {
+    if (jest.isMockFunction(validator.isDate)) {
+      validator.isDate.mockReturnValueOnce(false);
     }
 
     const response = await request(app)

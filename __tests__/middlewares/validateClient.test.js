@@ -73,6 +73,30 @@ describe('validateClient Middleware', () => {
     expect(response.body.body).toHaveProperty('email', null);
   });
 
+  it('deve permitir telefone e data de nascimento omitidos', async () => {
+    const { phone, birthDate, ...payloadWithoutOptionalFields } = validPayload;
+
+    const response = await request(app)
+      .post('/client')
+      .send(payloadWithoutOptionalFields)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body.body).toHaveProperty('phone', null);
+    expect(response.body.body).toHaveProperty('birthDate', null);
+  });
+
+  it('deve permitir telefone e data de nascimento em branco', async () => {
+    const response = await request(app)
+      .post('/client')
+      .send({ ...validPayload, phone: '', birthDate: '' })
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body.body).toHaveProperty('phone', null);
+    expect(response.body.body).toHaveProperty('birthDate', null);
+  });
+
   it('deve bloquear email invalido', async () => {
     if (jest.isMockFunction(validator.isEmail)) {
       validator.isEmail.mockReturnValueOnce(false);
@@ -100,6 +124,10 @@ describe('validateClient Middleware', () => {
   });
 
   it('deve bloquear telefone invalido', async () => {
+    if (jest.isMockFunction(isValidPhoneNumber)) {
+      isValidPhoneNumber.mockReturnValueOnce({ isValid: false, formatted: null });
+    }
+
     const response = await request(app)
       .post('/client')
       .send({ ...validPayload, phone: 'abc' })
