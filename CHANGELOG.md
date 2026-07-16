@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 - 2026-07-16
+
+- Adiciona `GET /health` público e sem dependências externas para monitoramento da API.
+- Documenta a configuração de keep-alive no UptimeRobot para o deploy no Render.
+
 ## 1.1.0 - 2026-06-03
 
 - Adiciona integração Google Calendar mão única BeautyApp -> Google Calendar.

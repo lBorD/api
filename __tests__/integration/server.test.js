@@ -7,6 +7,7 @@ import {
   serviceRoutes,
   appointmentRoutes,
   userRoutes,
+  healthRoutes,
 } from '../../src/routes/index.js';
 
 const app = express();
@@ -18,10 +19,19 @@ app.use('/clients', clientRoutes);
 app.use('/services', serviceRoutes);
 app.use('/appointments', appointmentRoutes);
 app.use('/users', userRoutes);
+app.use('/health', healthRoutes);
 
 const withAuth = (reqBuilder) => reqBuilder.set('Authorization', 'Bearer test-token');
 
 describe('Server Integration Tests', () => {
+  it('deve expor health check sem autenticacao', async () => {
+    const response = await request(app)
+      .get('/health')
+      .expect(200);
+
+    expect(response.body).toEqual({ status: 'ok' });
+  });
+
   it('deve configurar middleware JSON', async () => {
     const response = await request(app)
       .post('/auth/login')
