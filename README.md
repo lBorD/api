@@ -97,6 +97,35 @@ A API estará disponível em `http://localhost:3000`.
 
 ---
 
+## Monitoramento no Render
+
+A API disponibiliza um endpoint público e leve para health check:
+
+```http
+GET /health
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+Para manter a instância gratuita do Render ativa durante a fase de MVP, configure
+um monitor HTTP no UptimeRobot com:
+
+- URL: `https://api-h1hk.onrender.com/health`
+- método: `GET`
+- intervalo: 5 minutos
+- resposta esperada: HTTP `200`
+
+O endpoint não consulta banco de dados nem integrações externas. Ele verifica
+somente se o processo HTTP da API está respondendo.
+
+---
+
 ## Contribuição
 
 O BeautyApp é um projeto privado, desenvolvido como parte do portfólio pessoal de seu criador Gabriel Ribeiro e com potencial para comercialização futura.
