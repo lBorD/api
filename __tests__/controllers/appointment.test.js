@@ -16,6 +16,7 @@ app.use((req, res, next) => {
 });
 
 app.post('/appointments', AppointmentController.createAppointment);
+app.patch('/appointments/:id', AppointmentController.updateAppointment);
 
 const service = {
   id: 2,
@@ -133,6 +134,108 @@ describe('AppointmentController', () => {
       expect.any(Object),
     );
     expect(response.body.depositAmount).toBe(0);
+  });
+
+  it('bloqueia conflito de horario sem confirmacao explicita', async () => {
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+    Appointment.findOne.mockResolvedValue({ id: 99, userId: 1 });
+
+    await request(app)
+      .post('/appointments')
+      .send({
+        clientId: 1,
+        serviceIds: [service.id],
+        startAt: '2026-06-01T14:00:00.000Z',
+      })
+      .expect(409);
+
+    expect(Appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('permite criar agendamento em conflito quando confirmado', async () => {
+    const loadedAppointment = buildLoadedAppointment(0);
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+    Appointment.findOne.mockImplementation((options = {}) => (
+      Promise.resolve(options.include ? loadedAppointment : { id: 99, userId: 1 })
+    ));
+    Appointment.create.mockResolvedValue({ id: 10 });
+
+    await request(app)
+      .post('/appointments')
+      .send({
+        clientId: 1,
+        serviceIds: [service.id],
+        startAt: '2026-06-01T14:00:00.000Z',
+        depositAmount: 0,
+        allowConflict: true,
+      })
+      .expect(201);
+
+    expect(Appointment.create).toHaveBeenCalled();
+  });
+
+  it('bloqueia conflito ao editar sem confirmacao explicita', async () => {
+    const appointment = {
+      ...buildLoadedAppointment(0),
+      update: jest.fn(),
+    };
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+    Appointment.findOne.mockImplementation((options = {}) => {
+      if (options.where?.startAt && options.where?.endAt) {
+        return Promise.resolve({ id: 99, userId: 1 });
+      }
+
+      return Promise.resolve(appointment);
+    });
+
+    await request(app)
+      .patch('/appointments/10')
+      .send({
+        clientId: 1,
+        serviceIds: [service.id],
+        startAt: '2026-06-01T14:30:00.000Z',
+      })
+      .expect(409);
+
+    expect(appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('permite editar agendamento em conflito quando confirmado', async () => {
+    const loadedAppointment = buildLoadedAppointment(0);
+    const appointment = {
+      ...loadedAppointment,
+      update: jest.fn().mockResolvedValue({}),
+    };
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+    Appointment.findOne.mockImplementation((options = {}) => {
+      if (options.include) {
+        return Promise.resolve(loadedAppointment);
+      }
+
+      if (options.where?.startAt && options.where?.endAt) {
+        return Promise.resolve({ id: 99, userId: 1 });
+      }
+
+      return Promise.resolve(appointment);
+    });
+    AppointmentService.destroy.mockResolvedValue(1);
+
+    await request(app)
+      .patch('/appointments/10')
+      .send({
+        clientId: 1,
+        serviceIds: [service.id],
+        startAt: '2026-06-01T14:30:00.000Z',
+        allowConflict: true,
+      })
+      .expect(200);
+
+    expect(appointment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startAt: new Date('2026-06-01T14:30:00.000Z'),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('mantem criacao local quando Google Calendar falha depois do salvamento', async () => {

@@ -65,6 +65,12 @@ O app usa atualização otimista, então:
 - evitar operações síncronas longas;
 - manter o fluxo principal estável mesmo com dependências lentas.
 
+### Conflitos de horário
+
+- Criação e edição de agendamentos devem continuar detectando sobreposição.
+- Sem confirmação explícita, a API responde `409` para que o app avise a profissional.
+- Com `allowConflict: true`, enviado após a confirmação no app, a API deve salvar o agendamento mesmo com conflito.
+
 ## Modelo de domínio (mínimo viável)
 
 - `users`
