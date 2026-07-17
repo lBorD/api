@@ -355,6 +355,7 @@ class AppointmentController {
 
       const parsedEndAt = new Date(parsedStartAt.getTime() + totals.estimatedTime * 60 * 1000);
       const appointmentDepositAmount = parsedDepositAmount ?? calculateDefaultDepositAmount(totals.price);
+      const allowConflict = req.body.allowConflict === true;
 
       const conflict = await findConflict({
         userId,
@@ -362,7 +363,7 @@ class AppointmentController {
         endAt: parsedEndAt,
       });
 
-      if (conflict) {
+      if (conflict && !allowConflict) {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
@@ -456,6 +457,7 @@ class AppointmentController {
       }
 
       const nextEndAt = new Date(nextStartAt.getTime() + totals.estimatedTime * 60 * 1000);
+      const allowConflict = req.body.allowConflict === true;
 
       const conflict = await findConflict({
         userId,
@@ -464,7 +466,7 @@ class AppointmentController {
         excludeId: appointment.id,
       });
 
-      if (conflict) {
+      if (conflict && !allowConflict) {
         return res.status(409).json({ error: 'Conflito de horario com outro agendamento.' });
       }
 
