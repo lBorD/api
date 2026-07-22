@@ -234,6 +234,7 @@ const toPayload = (appointment) => {
       ? Number(appointment.depositAmount)
       : 0,
     status: appointment.status,
+    archivedAt: appointment.archivedAt ? new Date(appointment.archivedAt).toISOString() : null,
     notes: appointment.notes || '',
     googleEventId: appointment.googleEventId || null,
     googleCalendarId: appointment.googleCalendarId || null,
@@ -247,6 +248,7 @@ const findConflict = async ({ userId, startAt, endAt, excludeId = null }) => {
   const where = {
     userId,
     status: { [Op.ne]: 'canceled' },
+    archivedAt: null,
     startAt: { [Op.lt]: endAt },
     endAt: { [Op.gt]: startAt },
   };
@@ -281,7 +283,7 @@ class AppointmentController {
   static async listAppointments(req, res) {
     try {
       const userId = AppointmentController.getUserId(req);
-      const { from, to } = req.query;
+      const { from, to, includeArchived } = req.query;
 
       const fromDate = parseUtcDate(from);
       const toDate = parseUtcDate(to);
@@ -290,12 +292,18 @@ class AppointmentController {
         return res.status(400).json({ error: 'Parametros from/to invalidos. Use ISO-8601 UTC.' });
       }
 
+      const where = {
+        userId,
+        startAt: { [Op.lt]: toDate },
+        endAt: { [Op.gt]: fromDate },
+      };
+
+      if (includeArchived !== 'true') {
+        where.archivedAt = null;
+      }
+
       const appointments = await Appointment.findAll({
-        where: {
-          userId,
-          startAt: { [Op.lt]: toDate },
-          endAt: { [Op.gt]: fromDate },
-        },
+        where,
         include: appointmentIncludes,
         order: [['startAt', 'ASC']],
       });
@@ -410,7 +418,7 @@ class AppointmentController {
       const userId = AppointmentController.getUserId(req);
       const { id } = req.params;
 
-      const appointment = await Appointment.findOne({ where: { id, userId } });
+      const appointment = await Appointment.findOne({ where: { id, userId, archivedAt: null } });
       if (!appointment) {
         return res.status(404).json({ error: 'Agendamento nao encontrado.' });
       }
@@ -518,7 +526,7 @@ class AppointmentController {
         return res.status(400).json({ error: `Status invalido. Use: ${ALLOWED_STATUS.join(', ')}` });
       }
 
-      const appointment = await Appointment.findOne({ where: { id, userId } });
+      const appointment = await Appointment.findOne({ where: { id, userId, archivedAt: null } });
       if (!appointment) {
         return res.status(404).json({ error: 'Agendamento nao encontrado.' });
       }
@@ -549,6 +557,32 @@ class AppointmentController {
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
       return res.status(500).json({ error: 'Erro ao atualizar status do agendamento.' });
+    }
+  }
+
+  static async archiveAppointment(req, res) {
+    try {
+      const userId = AppointmentController.getUserId(req);
+      const { id } = req.params;
+      const appointment = await Appointment.findOne({ where: { id, userId } });
+
+      if (!appointment) {
+        return res.status(404).json({ error: 'Agendamento nao encontrado.' });
+      }
+
+      if (appointment.status !== 'canceled') {
+        return res.status(409).json({ error: 'Somente atendimentos cancelados podem ser removidos da agenda.' });
+      }
+
+      if (!appointment.archivedAt) {
+        await appointment.update({ archivedAt: new Date() });
+      }
+
+      const archived = await loadAppointmentWithRelations(appointment.id, userId);
+      return res.status(200).json(toPayload(archived));
+    } catch (error) {
+      console.error('Erro ao arquivar agendamento:', error);
+      return res.status(500).json({ error: 'Erro ao remover o agendamento da agenda.' });
     }
   }
 

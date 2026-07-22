@@ -10,6 +10,7 @@ router.get('/', AppointmentController.listAppointments);
 router.post('/', AppointmentController.createAppointment);
 router.patch('/:id', AppointmentController.updateAppointment);
 router.patch('/:id/status', AppointmentController.updateAppointmentStatus);
+router.patch('/:id/archive', AppointmentController.archiveAppointment);
 
 export default router;
 

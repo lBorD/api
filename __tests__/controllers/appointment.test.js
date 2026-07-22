@@ -15,8 +15,11 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/appointments', AppointmentController.listAppointments);
 app.post('/appointments', AppointmentController.createAppointment);
 app.patch('/appointments/:id', AppointmentController.updateAppointment);
+app.patch('/appointments/:id/status', AppointmentController.updateAppointmentStatus);
+app.patch('/appointments/:id/archive', AppointmentController.archiveAppointment);
 
 const service = {
   id: 2,
@@ -34,6 +37,7 @@ const buildLoadedAppointment = (depositAmount, googleSyncStatus = 'disabled') =>
   price: service.price,
   depositAmount,
   status: 'scheduled',
+  archivedAt: null,
   notes: '',
   googleSyncStatus,
   googleEventId: null,
@@ -278,5 +282,69 @@ describe('AppointmentController', () => {
       }),
       expect.objectContaining({ where: { id: 10 } }),
     );
+  });
+
+  it('oculta agendamentos arquivados das listagens normais', async () => {
+    Appointment.findAll.mockResolvedValue([]);
+
+    await request(app)
+      .get('/appointments?from=2026-06-01T00:00:00.000Z&to=2026-06-02T00:00:00.000Z')
+      .expect(200);
+
+    expect(Appointment.findAll).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        userId: 1,
+        archivedAt: null,
+      }),
+    }));
+  });
+
+  it('permite consulta autorizada com arquivados para historico', async () => {
+    Appointment.findAll.mockResolvedValue([]);
+
+    await request(app)
+      .get('/appointments?from=2026-06-01T00:00:00.000Z&to=2026-06-02T00:00:00.000Z&includeArchived=true')
+      .expect(200);
+
+    const [{ where }] = Appointment.findAll.mock.calls.at(-1);
+    expect(where).toEqual(expect.objectContaining({ userId: 1 }));
+    expect(where).not.toHaveProperty('archivedAt');
+  });
+
+  it('arquiva somente atendimento cancelado sem disparar sincronizacao Google', async () => {
+    const canceledAppointment = {
+      ...buildLoadedAppointment(0),
+      status: 'canceled',
+      archivedAt: null,
+    };
+    canceledAppointment.update = jest.fn(async (values) => Object.assign(canceledAppointment, values));
+    Appointment.findOne.mockResolvedValue(canceledAppointment);
+
+    const response = await request(app)
+      .patch('/appointments/10/archive')
+      .expect(200);
+
+    expect(canceledAppointment.update).toHaveBeenCalledWith({ archivedAt: expect.any(Date) });
+    expect(response.body).toEqual(expect.objectContaining({
+      id: 10,
+      status: 'canceled',
+      archivedAt: expect.any(String),
+    }));
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejeita arquivamento de atendimento que nao esta cancelado', async () => {
+    const scheduledAppointment = {
+      ...buildLoadedAppointment(0),
+      update: jest.fn(),
+    };
+    Appointment.findOne.mockResolvedValue(scheduledAppointment);
+
+    await request(app)
+      .patch('/appointments/10/archive')
+      .expect(409);
+
+    expect(scheduledAppointment.update).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
