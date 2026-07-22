@@ -217,6 +217,11 @@ jest.mock('./src/controllers/appointment.js', () => ({
     createAppointment: jest.fn((req, res) => res.status(201).json({ id: 1 })),
     updateAppointment: jest.fn((req, res) => res.status(200).json({ id: 1 })),
     updateAppointmentStatus: jest.fn((req, res) => res.status(200).json({ id: 1, status: req.body.status })),
+    archiveAppointment: jest.fn((req, res) => res.status(200).json({
+      id: 1,
+      status: 'canceled',
+      archivedAt: new Date().toISOString(),
+    })),
   },
 }));
 

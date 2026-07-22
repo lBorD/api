@@ -41,6 +41,10 @@ const Appointment = sequelize.define('Appointment', {
     allowNull: false,
     defaultValue: 'scheduled',
   },
+  archivedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+  },
   notes: {
     type: DataTypes.TEXT,
     allowNull: true,
