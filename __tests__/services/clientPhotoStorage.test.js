@@ -127,23 +127,19 @@ describe('clientPhotoStorage', () => {
     }, expect.objectContaining({ transaction: expect.any(Object) }));
   });
 
-  it('nao transfere foto de outro tenant quando create encontra conflito unico', async () => {
+  it('falha sem retry depois de conflito unico em transação travada', async () => {
     const uniqueConflict = Object.assign(new Error('clientId already exists'), {
       name: 'SequelizeUniqueConstraintError',
     });
     Client.findOne.mockResolvedValue({ id: 12 });
-    ClientPhoto.update.mockResolvedValueOnce([0]).mockResolvedValueOnce([0]);
+    ClientPhoto.update.mockResolvedValue([0]);
     ClientPhoto.create.mockRejectedValue(uniqueConflict);
 
     await expect(replaceClientPhoto({ userId: 7, clientId: 12, photo: normalizedPhoto }))
       .rejects.toMatchObject({ code: 'CLIENT_PHOTO_REPLACE_FAILED' });
 
-    expect(ClientPhoto.update).toHaveBeenCalledTimes(2);
-    expect(ClientPhoto.update).toHaveBeenNthCalledWith(1, expect.any(Object), expect.objectContaining({
-      where: { userId: 7, clientId: 12 },
-      transaction: expect.any(Object),
-    }));
-    expect(ClientPhoto.update).toHaveBeenNthCalledWith(2, expect.any(Object), expect.objectContaining({
+    expect(ClientPhoto.update).toHaveBeenCalledTimes(1);
+    expect(ClientPhoto.update).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
       where: { userId: 7, clientId: 12 },
       transaction: expect.any(Object),
     }));
@@ -151,6 +147,10 @@ describe('clientPhotoStorage', () => {
       userId: 7,
       clientId: 12,
     }), expect.objectContaining({ transaction: expect.any(Object) }));
+    const metadataReads = ClientPhoto.findOne.mock.calls
+      .map(([options]) => options)
+      .filter(({ attributes }) => Array.isArray(attributes) && attributes.includes('checksum'));
+    expect(metadataReads).toEqual([]);
   });
 
   it('remove somente a foto da cliente no tenant informado', async () => {

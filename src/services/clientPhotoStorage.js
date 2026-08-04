@@ -69,10 +69,9 @@ export const replaceClientPhoto = ({ userId, clientId, photo }) => sequelize.tra
         throw error;
       }
 
-      const retriedUpdate = await ClientPhoto.update(updateValues, { where, transaction });
-      if (affectedRows(retriedUpdate) === 0) {
-        throw errorWithCode('CLIENT_PHOTO_REPLACE_FAILED');
-      }
+      // PostgreSQL aborta a transação após conflito único; o lock da cliente
+      // já serializa criações legítimas, então não há retry seguro nesta callback.
+      throw errorWithCode('CLIENT_PHOTO_REPLACE_FAILED');
     }
   }
 
