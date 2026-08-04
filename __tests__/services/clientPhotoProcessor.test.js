@@ -29,6 +29,35 @@ describe('processClientPhoto', () => {
     await expect(processClientPhoto(buffer)).rejects.toMatchObject({ code: 'INVALID_CLIENT_PHOTO' });
   });
 
+  it.each([
+    ['JPEG', () => sharp({ create: { width: 16, height: 8, channels: 3, background: 'red' } }).jpeg().toBuffer()],
+    ['WebP', () => sharp({ create: { width: 16, height: 8, channels: 3, background: 'blue' } }).webp().toBuffer()],
+  ])('aceita bytes reais de %s', async (_format, buildBuffer) => {
+    const result = await processClientPhoto(await buildBuffer());
+
+    expect(result).toEqual(expect.objectContaining({
+      mimeType: 'image/webp',
+      width: 512,
+      height: 512,
+    }));
+  });
+
+  it('aplica orientacao EXIF antes do crop central', async () => {
+    const redCorner = await sharp({
+      create: { width: 128, height: 128, channels: 3, background: 'red' },
+    }).png().toBuffer();
+    const orientedJpeg = await sharp({
+      create: { width: 512, height: 512, channels: 3, background: 'blue' },
+    }).composite([{ input: redCorner, left: 0, top: 0 }]).withMetadata({ orientation: 6 }).jpeg().toBuffer();
+
+    const result = await processClientPhoto(orientedJpeg);
+    const { data, info } = await sharp(result.data).raw().toBuffer({ resolveWithObject: true });
+    const pixel = (x, y) => data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3);
+
+    expect(pixel(448, 64)[0]).toBeGreaterThan(pixel(448, 64)[2]);
+    expect(pixel(64, 64)[2]).toBeGreaterThan(pixel(64, 64)[0]);
+  });
+
   it('rejeita uma imagem acima de 16 megapixels', async () => {
     const oversizedPng = await sharp({
       create: { width: 4001, height: 4000, channels: 3, background: 'white' },

@@ -1,4 +1,5 @@
 import ClientPhoto from '../../src/models/ClientPhoto.js';
+import Client from '../../src/models/Client.js';
 import {
   getClientPhotoMeta,
   readClientPhoto,
@@ -17,8 +18,10 @@ const normalizedPhoto = {
 
 describe('clientPhotoStorage', () => {
   beforeEach(() => {
+    Client.findOne.mockReset();
     ClientPhoto.findOne.mockReset();
-    ClientPhoto.upsert.mockReset();
+    ClientPhoto.update.mockReset();
+    ClientPhoto.create.mockReset();
     ClientPhoto.destroy.mockReset();
   });
 
@@ -43,14 +46,71 @@ describe('clientPhotoStorage', () => {
     });
   });
 
-  it('faz upsert com dados normalizados e chave de tenant e cliente', async () => {
+  it('nao atualiza nem cria foto quando a cliente nao pertence ao tenant', async () => {
+    Client.findOne.mockResolvedValue(null);
+
+    await expect(replaceClientPhoto({ userId: 8, clientId: 12, photo: normalizedPhoto }))
+      .rejects.toMatchObject({ code: 'CLIENT_PHOTO_NOT_FOUND' });
+    expect(Client.findOne).toHaveBeenCalledWith({ where: { id: 12, userId: 8 } });
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
+    expect(ClientPhoto.create).not.toHaveBeenCalled();
+  });
+
+  it('atualiza uma foto existente apenas pela chave de tenant e cliente', async () => {
+    Client.findOne.mockResolvedValue({ id: 12 });
+    ClientPhoto.update.mockResolvedValue([1]);
+
     await replaceClientPhoto({ userId: 7, clientId: 12, photo: normalizedPhoto });
 
-    expect(ClientPhoto.upsert).toHaveBeenCalledWith({
+    expect(ClientPhoto.update).toHaveBeenCalledWith({
+      data: normalizedPhoto.data,
+      mimeType: normalizedPhoto.mimeType,
+      byteSize: normalizedPhoto.byteSize,
+      checksum: normalizedPhoto.checksum,
+      width: normalizedPhoto.width,
+      height: normalizedPhoto.height,
+    }, {
+      where: { userId: 7, clientId: 12 },
+    });
+    expect(ClientPhoto.create).not.toHaveBeenCalled();
+  });
+
+  it('cria foto somente depois de validar a propriedade e nao encontrar linha escopada', async () => {
+    Client.findOne.mockResolvedValue({ id: 12 });
+    ClientPhoto.update.mockResolvedValue([0]);
+    ClientPhoto.create.mockResolvedValue({ id: 1 });
+
+    await replaceClientPhoto({ userId: 7, clientId: 12, photo: normalizedPhoto });
+
+    expect(ClientPhoto.create).toHaveBeenCalledWith({
       userId: 7,
       clientId: 12,
       ...normalizedPhoto,
     });
+  });
+
+  it('nao transfere foto de outro tenant quando create encontra conflito unico', async () => {
+    const uniqueConflict = Object.assign(new Error('clientId already exists'), {
+      name: 'SequelizeUniqueConstraintError',
+    });
+    Client.findOne.mockResolvedValue({ id: 12 });
+    ClientPhoto.update.mockResolvedValueOnce([0]).mockResolvedValueOnce([0]);
+    ClientPhoto.create.mockRejectedValue(uniqueConflict);
+
+    await expect(replaceClientPhoto({ userId: 7, clientId: 12, photo: normalizedPhoto }))
+      .rejects.toMatchObject({ code: 'CLIENT_PHOTO_REPLACE_FAILED' });
+
+    expect(ClientPhoto.update).toHaveBeenCalledTimes(2);
+    expect(ClientPhoto.update).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      where: { userId: 7, clientId: 12 },
+    });
+    expect(ClientPhoto.update).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      where: { userId: 7, clientId: 12 },
+    });
+    expect(ClientPhoto.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7,
+      clientId: 12,
+    }));
   });
 
   it('remove somente a foto da cliente no tenant informado', async () => {
