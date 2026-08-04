@@ -477,3 +477,46 @@ Expected: somente arquivos da BEAUTY-41 antes do commit.
 git add package.json package-lock.json README.md API_GUIDELINES.md CHANGELOG.md
 git commit -m "docs: documenta perfil operacional da cliente"
 ```
+
+#### Emenda de segurança da Task 6: foto desativada durante o beta
+
+**Files adicionais:**
+- Create: `src/config/clientPhotoFeature.js`
+- Create: `src/middlewares/requireClientPhotoFeature.js`
+- Modify: `src/routes/clientRoutes.js`
+- Modify: `src/controllers/clientProfile.js`
+- Modify: `src/services/clientProfileService.js`
+- Modify: `src/services/clientPhotoProcessor.js`
+- Modify: `README.md`
+- Modify: `API_GUIDELINES.md`
+- Modify: `CHANGELOG.md`
+- Test: `__tests__/config/clientPhotoFeature.test.js`
+- Test: `__tests__/middlewares/requireClientPhotoFeature.test.js`
+- Test: `__tests__/routes/clientRoutes.test.js`
+- Test: `__tests__/controllers/clientProfile.test.js`
+- Test: `__tests__/services/clientProfileService.test.js`
+- Test: `__tests__/services/clientPhotoProcessor.test.js`
+
+- [ ] **Step 7: Escrever RED do guard default-off**
+
+Sem `CLIENT_PHOTO_ENABLED=true`, as três rotas de foto respondem `404` antes de ownership, Multer, leitura ou Sharp. Com opt-in explícito em teste, o contrato já implementado continua funcionando. O perfil desativado retorna `photoUrl/photoUpdatedAt: null` sem consultar `client_photos`.
+
+- [ ] **Step 8: Implementar fronteira de feature e mitigação do Sharp**
+
+Adicionar `isClientPhotoEnabled()` com opt-in estrito e middleware antes de qualquer handler de foto. `loadClientProfile` recebe `includePhoto` e não lê metadados quando falso. Como `sharp@0.35.x` exige Node >=20.9 e o runtime atual é 18.20.6, aplicar também o workaround oficial com `sharp.block({ operation: ['VipsForeignLoadNsgif', 'VipsForeignLoadTiff', 'VipsForeignLoadVips'] })`. Não ativar a flag em configuração de produção.
+
+- [ ] **Step 9: Documentar condição de ativação futura**
+
+Registrar que foto fica desligada durante o beta. Só ativar depois de upgrade coordenado para Node >=20.9 + Sharp corrigido, provisionamento do adaptador S3-compatible e entrega mobile específica. O PostgreSQL atual é implementação técnica provisória, não autorização de lançamento.
+
+- [ ] **Step 10: Verificar e corrigir a revisão**
+
+Run: `npm test -- --runInBand`
+Expected: PASS, incluindo default-off/opt-in e bloqueio do decoder.
+Run: `npm audit --omit=dev`
+Expected: o alerta de Sharp permanece detectável no lockfile, mas a superfície fica inacessível por padrão e os decodificadores citados no advisory ficam bloqueados em profundidade.
+
+```bash
+git add src/config/clientPhotoFeature.js src/middlewares/requireClientPhotoFeature.js src/routes/clientRoutes.js src/controllers/clientProfile.js src/services/clientProfileService.js src/services/clientPhotoProcessor.js README.md API_GUIDELINES.md CHANGELOG.md __tests__
+git commit -m "fix: desativa foto durante o beta"
+```
