@@ -43,3 +43,17 @@ Resultado: sem erros de whitespace.
 - Histórico reutiliza o codec Base64URL existente e a paginação preserva o limite máximo de 20.
 - Nenhuma foto, migration, deploy, endpoint de sugestões ou campo financeiro/Google foi adicionado.
 - A suíte completa ainda emite dois `console.error` esperados do teste preexistente de falha de cadastro de usuário; não há falhas de teste.
+
+## Ciclo de correção pós-revisão
+
+1. RED: `npm test -- __tests__/controllers/client.test.js __tests__/middlewares/validateClient.test.js __tests__/middlewares/validateClientUpdate.test.js --runInBand` apresentou cinco falhas esperadas: omissão no PATCH virava `null`, o `update` recebia a chave, `by-id` não tinha whitelist e tipos inválidos eram aceitos.
+2. GREEN: o middleware agora só normaliza `preferencesNotes` quando a propriedade foi enviada; `null`, string vazia e espaços limpam para `null`; tipos não string/não null retornam `400`.
+3. O controller só inclui `preferencesNotes` em create/update quando a propriedade existe no payload. `GET /clients/search/by-id/:id` agora usa a mesma whitelist das demais listagens.
+4. Testes focados executados: 5 suítes, 51 testes aprovados.
+5. Suíte completa renovada: 22 suítes, 130 testes aprovados. `git diff --check` executado sem erros de whitespace.
+
+### Auto-revisão da correção
+
+- PATCH legado sem `preferencesNotes` não altera uma nota existente; limpar exige envio explícito de `null`, string vazia ou somente espaços.
+- A whitelist de `by-id` impede que `preferencesNotes` seja selecionado e trafegado nessa rota legada.
+- Nenhum arquivo de ledger (`progress.md`) foi alterado.

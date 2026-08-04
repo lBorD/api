@@ -58,7 +58,10 @@ describe('ClientController', () => {
       .get('/1')
       .expect(200);
 
-    expect(Client.findOne).toHaveBeenCalledWith({ where: { id: '1', userId: 1 } });
+    expect(Client.findOne).toHaveBeenCalledWith({
+      attributes: clientListAttributes,
+      where: { id: '1', userId: 1 },
+    });
     expect(response.body).toHaveProperty('id', 1);
   });
 
@@ -84,6 +87,26 @@ describe('ClientController', () => {
       expect.objectContaining({ preferencesNotes: 'Prefere natural' }),
       { where: { id: '1', userId: 1 } },
     );
+  });
+
+  it('não limpa preferencesNotes existente quando PATCH a omite', async () => {
+    Client.update.mockResolvedValue([1]);
+    Client.findOne.mockResolvedValue({ id: 1, name: 'Atualizado' });
+
+    await request(app)
+      .patch('/1')
+      .send({
+        name: 'Atualizado',
+        lastName: 'Silva',
+        phone: '+5511999999999',
+        email: 'joao@example.com',
+        birthDate: '1990-01-01',
+        address: 'Rua 2',
+      })
+      .expect(200);
+
+    const [values] = Client.update.mock.calls[0];
+    expect(values).not.toHaveProperty('preferencesNotes');
   });
 
   it('deve deletar cliente do usuário', async () => {

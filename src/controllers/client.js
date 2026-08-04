@@ -17,7 +17,12 @@ class ClientController {
       const userId = ClientController.getUserId(req);
       const { name, lastName, phone, email, birthDate, address, preferencesNotes } = req.body;
 
-      await Client.create({ userId, name, lastName, phone, email, birthDate, address, preferencesNotes });
+      const clientData = { userId, name, lastName, phone, email, birthDate, address };
+      if (Object.prototype.hasOwnProperty.call(req.body, 'preferencesNotes')) {
+        clientData.preferencesNotes = preferencesNotes;
+      }
+
+      await Client.create(clientData);
       return res.status(201).json({ success: true });
     } catch (error) {
       console.error('Erro ao registrar cliente:', error);
@@ -38,7 +43,10 @@ class ClientController {
         return res.status(400).json({ error: 'ID inválido. O ID deve ser um número positivo.' });
       }
 
-      const client = await Client.findOne({ where: { id, userId } });
+      const client = await Client.findOne({
+        attributes: clientListAttributes,
+        where: { id, userId },
+      });
       if (!client) {
         return res.status(404).json({ error: `Não foi possível encontrar o cliente com o ID: ${id}` });
       }
@@ -55,10 +63,12 @@ class ClientController {
       const { id } = req.params;
       const { name, lastName, phone, email, birthDate, address, preferencesNotes } = req.body;
 
-      const [updated] = await Client.update(
-        { name, lastName, phone, email, birthDate, address, preferencesNotes },
-        { where: { id, userId } },
-      );
+      const clientData = { name, lastName, phone, email, birthDate, address };
+      if (Object.prototype.hasOwnProperty.call(req.body, 'preferencesNotes')) {
+        clientData.preferencesNotes = preferencesNotes;
+      }
+
+      const [updated] = await Client.update(clientData, { where: { id, userId } });
 
       if (!updated) {
         return res.status(404).json({ error: 'Cliente não encontrado.' });

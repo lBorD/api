@@ -175,4 +175,31 @@ describe('validateClientUpdate Middleware', () => {
 
     expect(response.body).toHaveProperty('error');
   });
+
+  it('preserva preferencesNotes ausente no payload de atualização', async () => {
+    const response = await request(app)
+      .patch('/client/1')
+      .send(validPayload)
+      .expect(200);
+
+    expect(response.body.body).not.toHaveProperty('preferencesNotes');
+  });
+
+  it.each([null, '', '   '])('normaliza preferencesNotes explícita %p para null', async (preferencesNotes) => {
+    const response = await request(app)
+      .patch('/client/1')
+      .send({ ...validPayload, preferencesNotes })
+      .expect(200);
+
+    expect(response.body.body).toHaveProperty('preferencesNotes', null);
+  });
+
+  it('rejeita preferencesNotes com tipo diferente de string ou null', async () => {
+    const response = await request(app)
+      .patch('/client/1')
+      .send({ ...validPayload, preferencesNotes: { texto: 'natural' } })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
 });

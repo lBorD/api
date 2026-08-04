@@ -9,6 +9,7 @@ const validateClient = async (req, res, next) => {
   const normalizedEmail = typeof email === 'string' ? email.trim() : email;
   const normalizedPhone = typeof phone === 'string' ? phone.trim() : phone;
   const normalizedBirthDate = typeof birthDate === 'string' ? birthDate.trim() : birthDate;
+  const hasPreferencesNotes = Object.prototype.hasOwnProperty.call(req.body, 'preferencesNotes');
   const normalizedPreferencesNotes = typeof preferencesNotes === 'string'
     ? preferencesNotes.trim()
     : preferencesNotes;
@@ -20,9 +21,11 @@ const validateClient = async (req, res, next) => {
   req.body.email = hasEmail ? normalizedEmail : null;
   req.body.phone = hasPhone ? normalizedPhone : null;
   req.body.birthDate = hasBirthDate ? normalizedBirthDate : null;
-  req.body.preferencesNotes = typeof normalizedPreferencesNotes === 'string' && normalizedPreferencesNotes.length > 0
-    ? normalizedPreferencesNotes
-    : null;
+  if (hasPreferencesNotes) {
+    req.body.preferencesNotes = typeof normalizedPreferencesNotes === 'string' && normalizedPreferencesNotes.length > 0
+      ? normalizedPreferencesNotes
+      : null;
+  }
 
   const emailExists = hasEmail ? await existingClient(normalizedEmail, null, userId) : false;
 
@@ -33,6 +36,7 @@ const validateClient = async (req, res, next) => {
     { condition: hasPhone && !isValidPhoneNumber(normalizedPhone).isValid, message: "Número de telefone inválido." },
     { condition: hasBirthDate && !validator.isDate(normalizedBirthDate, { format: 'YYYY-MM-DD', strictMode: true }), message: "Data de nascimento inválida. Use o formato YYYY-MM-DD." },
     { condition: hasBirthDate && new Date(normalizedBirthDate) > new Date(), message: "Data de nascimento não pode ser no futuro." },
+    { condition: hasPreferencesNotes && preferencesNotes !== null && typeof preferencesNotes !== 'string', message: 'Preferências devem ser um texto ou nulas.' },
     { condition: typeof normalizedPreferencesNotes === 'string' && normalizedPreferencesNotes.length > 2000, message: 'Preferências não podem ter mais de 2000 caracteres.' },
   ];
 

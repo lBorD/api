@@ -175,5 +175,14 @@ describe('validateClient Middleware', () => {
 
     expect(response.body).toHaveProperty('error');
   });
+
+  it('rejeita preferencesNotes com tipo diferente de string ou null', async () => {
+    const response = await request(app)
+      .post('/client')
+      .send({ ...validPayload, preferencesNotes: 123 })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
 });
 
