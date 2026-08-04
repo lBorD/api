@@ -8,6 +8,12 @@
 
 **Tech Stack:** Node.js 18.20.6, Express 4, Sequelize 6, PostgreSQL, Jest/Supertest, Multer 2.2.0 e Sharp 0.34.0.
 
+## Checkpoint de execucao - pausa em 2026-08-03
+
+- API concluida e revisada na branch `feat/BEAUTY-41`; ultimo commit `baf560a`; 27 suites e 184 testes aprovados.
+- Foto `default-off` durante o beta. Nao ativar antes de Node >= 20.9, Sharp corrigido, S3-compatible provisionado e entrega mobile coordenada.
+- Migration nao executada por falta de banco descartavel; sem PR, merge ou deploy. A issue continua em `In progress` durante a pausa integrada.
+
 ## Global Constraints
 
 - Toda busca ou mutação inclui `req.user.id`; cliente inexistente e cliente alheia retornam o mesmo `404`.
