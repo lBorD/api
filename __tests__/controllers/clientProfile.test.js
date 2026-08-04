@@ -5,6 +5,7 @@ import Client from '../../src/models/Client.js';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
 import ClientPhoto from '../../src/models/ClientPhoto.js';
+import sequelize from '../../src/config/db.js';
 import ClientProfileController from '../../src/controllers/clientProfile.js';
 import { encodeHistoryCursor } from '../../src/utils/clientHistoryCursor.js';
 
@@ -200,6 +201,45 @@ describe('ClientProfileController', () => {
     });
   });
 
+  it.each([
+    `W/"${photoRow.checksum}"`,
+    '*',
+    `"outro", W/"${photoRow.checksum}"`,
+  ])('aceita If-None-Match fraco ou lista correspondente: %s', async (ifNoneMatch) => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.findOne.mockResolvedValue(photoRow);
+
+    await request(app)
+      .get('/1/photo')
+      .set('If-None-Match', ifNoneMatch)
+      .expect(304);
+  });
+
+  it.each([
+    `W/"${photoRow.checksum}"`,
+    '*',
+    `"outro", W/"${photoRow.checksum}"`,
+  ])('faz a comparação fraca antes de delegar o envio ao Express: %s', async (ifNoneMatch) => {
+    const res = {
+      set: jest.fn(),
+      status: jest.fn().mockReturnThis(),
+      end: jest.fn(),
+      send: jest.fn(),
+    };
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.findOne.mockResolvedValue(photoRow);
+
+    await ClientProfileController.getPhoto({
+      params: { id: '1' },
+      user: { id: 7 },
+      get: jest.fn().mockReturnValue(ifNoneMatch),
+    }, res);
+
+    expect(res.status).toHaveBeenCalledWith(304);
+    expect(res.end).toHaveBeenCalled();
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
   it('retorna WebP com cache privado e tamanho exato', async () => {
     Client.findOne.mockResolvedValue({ id: 1 });
     ClientPhoto.findOne.mockResolvedValue(photoRow);
@@ -214,6 +254,15 @@ describe('ClientProfileController', () => {
       'x-content-type-options': 'nosniff',
     });
     expect(Buffer.compare(response.body, photoRow.data)).toBe(0);
+  });
+
+  it('usa o comprimento real dos bytes mesmo quando byteSize diverge', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.findOne.mockResolvedValue({ ...photoRow, byteSize: photoRow.byteSize + 99 });
+
+    const response = await request(app).get('/1/photo').expect(200);
+
+    expect(response.headers['content-length']).toBe(String(photoRow.data.length));
   });
 
   it('preserva a foto anterior quando o processamento falha', async () => {
@@ -245,13 +294,39 @@ describe('ClientProfileController', () => {
     expect(ClientPhoto.update).toHaveBeenCalled();
   });
 
+  it('usa os metadados retornados pela transação de replace sem leitura posterior', async () => {
+    const transaction = { LOCK: { UPDATE: 'UPDATE' } };
+    sequelize.transaction.mockImplementation(async (callback) => callback(transaction));
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.update.mockResolvedValue([1]);
+    ClientPhoto.findOne.mockResolvedValue({ ...photoRow, data: undefined });
+
+    await request(app)
+      .put('/1/photo')
+      .set('Content-Type', 'image/png')
+      .send(validPngBuffer)
+      .expect(200);
+
+    const metadataCalls = ClientPhoto.findOne.mock.calls
+      .map(([options]) => options)
+      .filter(({ where }) => where?.userId === 7 && where?.clientId === 1);
+    expect(metadataCalls).toEqual([{
+      attributes: ['mimeType', 'byteSize', 'checksum', 'width', 'height', 'updatedAt'],
+      where: { userId: 7, clientId: 1 },
+      transaction,
+    }]);
+  });
+
   it('remove a foto de forma idempotente', async () => {
     Client.findOne.mockResolvedValue({ id: 1 });
     ClientPhoto.destroy.mockResolvedValue(0);
 
     await request(app).delete('/1/photo').expect(204);
 
-    expect(ClientPhoto.destroy).toHaveBeenCalledWith({ where: { userId: 7, clientId: 1 } });
+    expect(ClientPhoto.destroy).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 7, clientId: 1 },
+      transaction: expect.any(Object),
+    }));
   });
 
   it('mantém 404 se a propriedade desaparecer antes da persistência', async () => {

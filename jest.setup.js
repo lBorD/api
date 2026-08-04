@@ -56,7 +56,7 @@ jest.mock('sequelize', () => {
       associations: {},
     }),
     sync: jest.fn().mockResolvedValue(),
-    transaction: jest.fn(async (callback) => callback({})),
+    transaction: jest.fn(async (callback) => callback({ LOCK: { UPDATE: 'UPDATE' } })),
   };
 
   const Sequelize = jest.fn(() => mSequelize);
@@ -272,7 +272,7 @@ jest.mock('./src/config/db.js', () => ({
   default: {
     authenticate: jest.fn().mockResolvedValue(),
     sync: jest.fn().mockResolvedValue(),
-    transaction: jest.fn(async (callback) => callback({})),
+    transaction: jest.fn(async (callback) => callback({ LOCK: { UPDATE: 'UPDATE' } })),
   },
 }));
 

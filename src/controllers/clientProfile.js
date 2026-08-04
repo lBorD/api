@@ -5,7 +5,6 @@ import {
 } from '../services/clientProfileService.js';
 import { processClientPhoto } from '../services/clientPhotoProcessor.js';
 import {
-  getClientPhotoMeta,
   readClientPhoto,
   removeClientPhoto,
   replaceClientPhoto,
@@ -71,13 +70,17 @@ const clientNotFound = (res) => res.status(404).json({ error: NOT_FOUND_MESSAGE 
 const invalidPhoto = (res) => res.status(415).json({ error: 'Foto inválida.' });
 const photoHeaders = (photo) => ({
   'Content-Type': 'image/webp',
-  'Content-Length': String(photo.byteSize),
+  'Content-Length': String(photo.data.length),
   ETag: `"${photo.checksum}"`,
   'Cache-Control': 'private, max-age=86400, must-revalidate',
   'X-Content-Type-Options': 'nosniff',
 });
 const etagMatches = (header, etag) => typeof header === 'string'
-  && header.split(',').map((value) => value.trim()).includes(etag);
+  && header.split(',').map((value) => value.trim()).some((value) => (
+    value === '*'
+    || value === etag
+    || (value.startsWith('W/') && value.slice(2).trim() === etag)
+  ));
 
 class ClientProfileController {
   static async getProfile(req, res) {
@@ -161,8 +164,7 @@ class ClientProfileController {
         throw error;
       }
 
-      await replaceClientPhoto({ userId: req.user.id, clientId: id, photo });
-      const metadata = await getClientPhotoMeta({ userId: req.user.id, clientId: id });
+      const metadata = await replaceClientPhoto({ userId: req.user.id, clientId: id, photo });
       return res.status(200).json(serializePhotoMetadata(id, metadata));
     } catch (error) {
       if (error?.code === 'CLIENT_PHOTO_NOT_FOUND') {
@@ -238,6 +240,9 @@ class ClientProfileController {
       await removeClientPhoto({ userId: req.user.id, clientId: id });
       return res.status(204).end();
     } catch (error) {
+      if (error?.code === 'CLIENT_PHOTO_NOT_FOUND') {
+        return clientNotFound(res);
+      }
       console.error('Erro ao remover foto da cliente:', error);
       return res.status(500).json({ error: 'Erro ao remover foto da cliente.' });
     }
