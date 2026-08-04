@@ -169,7 +169,6 @@ jest.mock('./src/models/ClientPhoto.js', () => ({
     findOne: jest.fn(),
     findByPk: jest.fn(),
     create: jest.fn(),
-    upsert: jest.fn(),
     update: jest.fn(),
     destroy: jest.fn(),
     findAll: jest.fn().mockResolvedValue([]),
@@ -227,6 +226,10 @@ jest.mock('./src/controllers/clientProfile.js', () => ({
       history: { appointments: [], nextCursor: null },
     })),
     getHistory: jest.fn((req, res) => res.status(200).json({ appointments: [], nextCursor: null })),
+    validatePhotoOwnership: jest.fn((req, res, next) => next()),
+    putPhoto: jest.fn((req, res) => res.status(200).json({ receivedBufferLength: req.file.buffer.length })),
+    getPhoto: jest.fn((req, res) => res.status(200).send(Buffer.from('photo'))),
+    deletePhoto: jest.fn((req, res) => res.status(204).end()),
   },
 }));
 

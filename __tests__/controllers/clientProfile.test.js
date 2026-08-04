@@ -4,6 +4,7 @@ import { Op } from 'sequelize';
 import Client from '../../src/models/Client.js';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
+import ClientPhoto from '../../src/models/ClientPhoto.js';
 import ClientProfileController from '../../src/controllers/clientProfile.js';
 import { encodeHistoryCursor } from '../../src/utils/clientHistoryCursor.js';
 
@@ -15,6 +16,12 @@ app.use((req, res, next) => {
 });
 app.get('/:id/profile', ClientProfileController.getProfile);
 app.get('/:id/appointments/history', ClientProfileController.getHistory);
+app.put('/:id/photo', express.raw({ type: '*/*' }), (req, res, next) => {
+  req.file = { buffer: req.body };
+  next();
+}, ClientProfileController.putPhoto);
+app.get('/:id/photo', ClientProfileController.getPhoto);
+app.delete('/:id/photo', ClientProfileController.deletePhoto);
 
 const clientFixture = {
   id: 1,
@@ -28,10 +35,28 @@ const clientFixture = {
   preferencesNotes: 'Prefere natural',
 };
 
+const photoRow = {
+  data: Buffer.from('normalized-webp'),
+  mimeType: 'image/webp',
+  byteSize: 15,
+  checksum: 'a'.repeat(64),
+  width: 512,
+  height: 512,
+  updatedAt: new Date('2026-08-03T12:00:00.000Z'),
+};
+const validPngBuffer = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+
 describe('ClientProfileController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     AppointmentService.findAll.mockResolvedValue([]);
+    ClientPhoto.findOne.mockReset();
+    ClientPhoto.update.mockReset();
+    ClientPhoto.create.mockReset();
+    ClientPhoto.destroy.mockReset();
   });
 
   it('não consulta appointments quando a cliente é alheia ou inexistente', async () => {
@@ -98,6 +123,7 @@ describe('ClientProfileController', () => {
         address: 'Rua das Flores, 10',
         preferencesNotes: 'Prefere natural',
         photoUrl: null,
+        photoUpdatedAt: null,
       },
       upcomingAppointments: [expect.objectContaining({ id: 20, status: 'scheduled' })],
       history: { appointments: [expect.objectContaining({ id: 19, status: 'completed' })], nextCursor: null },
@@ -117,5 +143,124 @@ describe('ClientProfileController', () => {
     expect(response.body).toEqual({ appointments: [], nextCursor: null });
     expect(Client.findOne).toHaveBeenCalledWith({ where: { id: 1, userId: 7 } });
     expect(Appointment.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 21 }));
+  });
+
+  it('inclui somente metadados da foto versionados no perfil inicial', async () => {
+    Client.findOne.mockResolvedValue(clientFixture);
+    ClientPhoto.findOne.mockResolvedValue({ ...photoRow, data: undefined });
+    Appointment.findAll.mockResolvedValue([]);
+
+    const response = await request(app).get('/1/profile').expect(200);
+
+    expect(response.body.client).toMatchObject({
+      photoUrl: '/clients/1/photo?v=2026-08-03T12%3A00%3A00.000Z',
+      photoUpdatedAt: '2026-08-03T12:00:00.000Z',
+    });
+    expect(JSON.stringify(response.body)).not.toContain('normalized-webp');
+    expect(ClientPhoto.findOne).toHaveBeenCalledWith({
+      attributes: ['mimeType', 'byteSize', 'checksum', 'width', 'height', 'updatedAt'],
+      where: { userId: 7, clientId: 1 },
+    });
+  });
+
+  it('rejeita upload inválido antes de ler ou mutar fotos', async () => {
+    await request(app).put('/0/photo').send(validPngBuffer).expect(400);
+
+    expect(Client.findOne).not.toHaveBeenCalled();
+    expect(ClientPhoto.findOne).not.toHaveBeenCalled();
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
+  });
+
+  it('não lê, processa ou remove foto quando a cliente não pertence ao usuário', async () => {
+    Client.findOne.mockResolvedValue(null);
+
+    await request(app).get('/1/photo').expect(404, { error: 'Cliente não encontrado.' });
+    await request(app).put('/1/photo').send(validPngBuffer).expect(404, { error: 'Cliente não encontrado.' });
+    await request(app).delete('/1/photo').expect(404, { error: 'Cliente não encontrado.' });
+
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
+    expect(ClientPhoto.destroy).not.toHaveBeenCalled();
+  });
+
+  it('responde 304 sem corpo quando o ETag coincide', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.findOne.mockResolvedValue(photoRow);
+
+    const response = await request(app)
+      .get('/1/photo')
+      .set('If-None-Match', `"${photoRow.checksum}"`)
+      .expect(304);
+
+    expect(Buffer.isBuffer(response.body)).toBe(true);
+    expect(response.body).toHaveLength(0);
+    expect(response.headers).toMatchObject({
+      etag: `"${photoRow.checksum}"`,
+      'cache-control': 'private, max-age=86400, must-revalidate',
+      'x-content-type-options': 'nosniff',
+    });
+  });
+
+  it('retorna WebP com cache privado e tamanho exato', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.findOne.mockResolvedValue(photoRow);
+
+    const response = await request(app).get('/1/photo').expect(200);
+
+    expect(response.headers).toMatchObject({
+      'content-type': 'image/webp',
+      'content-length': String(photoRow.byteSize),
+      etag: `"${photoRow.checksum}"`,
+      'cache-control': 'private, max-age=86400, must-revalidate',
+      'x-content-type-options': 'nosniff',
+    });
+    expect(Buffer.compare(response.body, photoRow.data)).toBe(0);
+  });
+
+  it('preserva a foto anterior quando o processamento falha', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+
+    await request(app)
+      .put('/1/photo')
+      .send(Buffer.from('not-an-image'))
+      .expect(415, { error: 'Foto inválida.' });
+
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
+    expect(ClientPhoto.create).not.toHaveBeenCalled();
+  });
+
+  it('substitui a foto processada e retorna uma URL versionada', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.update.mockResolvedValue([1]);
+    ClientPhoto.findOne.mockResolvedValue({ ...photoRow, data: undefined });
+
+    await request(app)
+      .put('/1/photo')
+      .set('Content-Type', 'image/png')
+      .send(validPngBuffer)
+      .expect(200, {
+        photoUrl: '/clients/1/photo?v=2026-08-03T12%3A00%3A00.000Z',
+        photoUpdatedAt: '2026-08-03T12:00:00.000Z',
+      });
+
+    expect(ClientPhoto.update).toHaveBeenCalled();
+  });
+
+  it('remove a foto de forma idempotente', async () => {
+    Client.findOne.mockResolvedValue({ id: 1 });
+    ClientPhoto.destroy.mockResolvedValue(0);
+
+    await request(app).delete('/1/photo').expect(204);
+
+    expect(ClientPhoto.destroy).toHaveBeenCalledWith({ where: { userId: 7, clientId: 1 } });
+  });
+
+  it('mantém 404 se a propriedade desaparecer antes da persistência', async () => {
+    Client.findOne.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce(null);
+
+    await request(app)
+      .put('/1/photo')
+      .set('Content-Type', 'image/png')
+      .send(validPngBuffer)
+      .expect(404, { error: 'Cliente não encontrado.' });
   });
 });

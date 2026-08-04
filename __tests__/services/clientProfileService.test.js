@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
+import ClientPhoto from '../../src/models/ClientPhoto.js';
 import { encodeHistoryCursor } from '../../src/utils/clientHistoryCursor.js';
 import {
   loadClientHistory,
@@ -39,6 +40,7 @@ describe('clientProfileService', () => {
   beforeEach(() => {
     Appointment.findAll.mockReset();
     AppointmentService.findAll.mockReset();
+    ClientPhoto.findOne.mockReset().mockResolvedValue(null);
   });
 
   it('filtra próximos e histórico por tenant, cliente e visibilidade', async () => {
@@ -85,6 +87,7 @@ describe('clientProfileService', () => {
       where: { appointmentId: { [Op.in]: [31, 30] } },
     }));
     expect(profile).toEqual({
+      photo: null,
       upcomingAppointments: [{
         id: 31,
         clientId: 12,
@@ -115,6 +118,25 @@ describe('clientProfileService', () => {
       },
     });
     expect(JSON.stringify(profile)).not.toMatch(/price|depositAmount|google/i);
+  });
+
+  it('consulta somente metadados da foto em paralelo aos agendamentos do perfil', async () => {
+    let resolvePhoto;
+    ClientPhoto.findOne.mockImplementation(() => new Promise((resolve) => {
+      resolvePhoto = resolve;
+    }));
+    Appointment.findAll.mockResolvedValue([]);
+
+    const profilePromise = loadClientProfile({ userId: 7, clientId: 12, now });
+
+    expect(ClientPhoto.findOne).toHaveBeenCalledWith({
+      attributes: ['mimeType', 'byteSize', 'checksum', 'width', 'height', 'updatedAt'],
+      where: { userId: 7, clientId: 12 },
+    });
+    expect(Appointment.findAll).toHaveBeenCalledTimes(2);
+
+    resolvePhoto(null);
+    await expect(profilePromise).resolves.toMatchObject({ photo: null });
   });
 
   it('pagina empate de horário usando id como desempate', async () => {

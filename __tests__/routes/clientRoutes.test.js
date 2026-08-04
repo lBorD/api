@@ -2,6 +2,7 @@
 import express from 'express';
 import clientRoutes from '../../src/routes/clientRoutes.js';
 import Client from '../../src/models/Client.js';
+import ClientPhoto from '../../src/models/ClientPhoto.js';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
 
@@ -10,6 +11,17 @@ app.use(express.json());
 app.use('/clients', clientRoutes);
 
 const withAuth = (reqBuilder) => reqBuilder.set('Authorization', 'Bearer test-token');
+const validPngBuffer = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+const photoMetadata = {
+  data: Buffer.from('normalized-webp'),
+  mimeType: 'image/webp',
+  byteSize: 15,
+  checksum: 'a'.repeat(64),
+  updatedAt: new Date('2026-08-03T12:00:00.000Z'),
+};
 
 describe('Client Routes', () => {
   beforeEach(() => {
@@ -119,6 +131,41 @@ describe('Client Routes', () => {
     await request(app)
       .get('/clients/1/appointments/history')
       .expect(401);
+  });
+
+  it('exige Bearer nas rotas de foto', async () => {
+    await request(app).put('/clients/1/photo').expect(401);
+    await request(app).get('/clients/1/photo').expect(401);
+    await request(app).delete('/clients/1/photo').expect(401);
+  });
+
+  it('executa o upload antes do handler PUT de foto autenticado', async () => {
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+    ClientPhoto.update.mockResolvedValue([1]);
+    ClientPhoto.findOne.mockResolvedValue(photoMetadata);
+    const response = await withAuth(request(app)
+      .put('/clients/1/photo')
+      .attach('photo', validPngBuffer, 'photo.png'))
+      .expect(200);
+
+    expect(response.body).toEqual({
+      photoUrl: '/clients/1/photo?v=2026-08-03T12%3A00%3A00.000Z',
+      photoUpdatedAt: '2026-08-03T12:00:00.000Z',
+    });
+
+    await withAuth(request(app).get('/clients/1/photo')).expect(200);
+    await withAuth(request(app).delete('/clients/1/photo')).expect(204);
+  });
+
+  it('confirma propriedade antes de aceitar ou limitar o multipart da foto', async () => {
+    Client.findOne.mockResolvedValue(null);
+
+    await withAuth(request(app)
+      .put('/clients/1/photo')
+      .attach('photo', Buffer.alloc(5 * 1024 * 1024 + 1), 'photo.png'))
+      .expect(404, { error: 'Cliente não encontrado.' });
+
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
   });
 });
 

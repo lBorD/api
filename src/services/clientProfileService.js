@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import Appointment from '../models/Appointment.js';
 import AppointmentService from '../models/AppointmentService.js';
+import { getClientPhotoMeta } from './clientPhotoStorage.js';
 import {
   decodeHistoryCursor,
   encodeHistoryCursor,
@@ -116,7 +117,8 @@ export const loadClientHistory = async ({ userId, clientId, cursor = null, limit
 };
 
 export const loadClientProfile = async ({ userId, clientId, now = new Date() }) => {
-  const [upcomingRows, historyRows] = await Promise.all([
+  const [photo, upcomingRows, historyRows] = await Promise.all([
+    getClientPhotoMeta({ userId, clientId }),
     loadUpcomingAppointments({ userId, clientId, now }),
     loadHistoryRows({ userId, clientId, cursor: null, limit: 4, now }),
   ]);
@@ -125,6 +127,7 @@ export const loadClientProfile = async ({ userId, clientId, now = new Date() }) 
   const serialized = await serializeAppointments([...upcomingRows, ...visibleHistoryRows]);
 
   return {
+    photo,
     upcomingAppointments: serialized.slice(0, upcomingRows.length),
     history: {
       appointments: serialized.slice(upcomingRows.length),
