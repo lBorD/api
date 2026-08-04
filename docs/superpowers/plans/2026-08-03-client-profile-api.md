@@ -4,7 +4,7 @@
 
 **Goal:** Disponibilizar um perfil operacional autenticado com preferências, próximos atendimentos, histórico paginado e avatar privado para cada cliente.
 
-**Architecture:** Um controller dedicado valida a propriedade da cliente e delega consultas/serialização a serviços pequenos. O avatar é normalizado para WebP e persistido em `client_photos`, separado de `Clients`; o JSON transporta apenas metadados e a rota autenticada da imagem. Histórico usa cursor Base64URL e índice por usuário, cliente, data e id.
+**Architecture:** Um controller dedicado valida a propriedade da cliente e delega consultas/serialização a serviços pequenos. O avatar é normalizado para WebP e passa exclusivamente pela fronteira `clientPhotoStorage`; o adaptador atual persiste em `client_photos`, separado de `Clients`, e pode ser trocado futuramente por S3-compatible sem alterar controllers, DTOs ou rotas. O JSON transporta apenas metadados e a rota autenticada da imagem. Histórico usa cursor Base64URL e índice por usuário, cliente, data e id.
 
 **Tech Stack:** Node.js 18.20.6, Express 4, Sequelize 6, PostgreSQL, Jest/Supertest, Multer 2.2.0 e Sharp 0.34.0.
 
@@ -16,6 +16,7 @@
 - `preferencesNotes` é interno, opcional, trimado, vazio vira `null` e tem máximo de 2.000 caracteres.
 - A foto final é WebP 512 × 512, no máximo 512 KiB; entrada JPEG/PNG/WebP de no máximo 5 MiB e 16 megapixels.
 - Bytes/base64 nunca entram em JSON, listagem ou sincronização de clientes.
+- O app beta não consome as rotas de foto; a API fica preparada e testada, sem pressupor bucket, IAM, secrets ou lifecycle provisionados.
 - Não recriar endpoint de sugestões de horário e não incluir preço, sinal ou campos Google no payload do perfil.
 - Não executar migration ou deploy de produção nesta implementação.
 
@@ -78,7 +79,7 @@ Na migration, criar FK de `userId` para `users`, FK única de `clientId` para `C
 
 - [ ] **Step 4: Atualizar doubles globais do Jest**
 
-Adicionar `BLOB`, `gte`, `lte`, `eq` e mock completo de `ClientPhoto` a `jest.setup.js`, incluindo `findOne`, `upsert` e `destroy`.
+Adicionar `BLOB`, `gte`, `lte`, `eq` e mock completo de `ClientPhoto` a `jest.setup.js`, incluindo `findOne`, `create`, `update` e `destroy`.
 
 - [ ] **Step 5: Confirmar GREEN e regressão curta**
 
@@ -334,10 +335,16 @@ Expected: PASS.
 - [ ] **Step 4: Escrever testes falhando do storage**
 
 ```js
-it('faz upsert pela chave composta de tenant e cliente', async () => {
+it('substitui a foto somente depois de confirmar o tenant e bloquear a cliente', async () => {
   await replaceClientPhoto({ userId: 7, clientId: 12, photo: normalizedPhoto });
-  expect(ClientPhoto.upsert).toHaveBeenCalledWith(
-    expect.objectContaining({ userId: 7, clientId: 12, mimeType: 'image/webp' }),
+  expect(Client.findOne).toHaveBeenCalledWith(expect.objectContaining({
+    where: { id: 12, userId: 7 },
+    transaction: expect.any(Object),
+    lock: expect.anything(),
+  }));
+  expect(ClientPhoto.update).toHaveBeenCalledWith(
+    expect.objectContaining({ mimeType: 'image/webp' }),
+    expect.objectContaining({ where: { userId: 7, clientId: 12 }, transaction: expect.any(Object) }),
   );
 });
 
@@ -348,6 +355,8 @@ it('não lê foto de outro tenant', async () => {
 ```
 
 - [ ] **Step 5: Confirmar RED, implementar storage e confirmar GREEN**
+
+Validar a propriedade de `Client` dentro de transação com `FOR UPDATE`, atualizar somente por `{ userId, clientId }` e criar somente quando não existir linha escopada. `SequelizeUniqueConstraintError` encerra a transação com erro estável e rollback; não executar retry dentro de uma transação PostgreSQL abortada. Retornar os metadados sem BLOB ainda dentro da mesma transação.
 
 Run: `npm test -- __tests__/services/clientPhotoStorage.test.js --runInBand`  
 Expected antes: FAIL; depois: PASS.
