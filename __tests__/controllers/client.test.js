@@ -20,6 +20,10 @@ app.get('/:id', ClientController.getClientById);
 app.patch('/:id', ClientController.updateClient);
 app.delete('/:id', ClientController.deleteClient);
 
+const clientListAttributes = [
+  'id', 'userId', 'name', 'lastName', 'phone', 'email', 'birthDate', 'address', 'createdAt', 'updatedAt',
+];
+
 describe('ClientController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,6 +37,7 @@ describe('ClientController', () => {
       email: 'joao@example.com',
       birthDate: '1990-01-01',
       address: 'Rua Teste',
+      preferencesNotes: 'Prefere natural',
     };
 
     Client.create.mockResolvedValue({ id: 1, ...clientData, userId: 1 });
@@ -70,11 +75,15 @@ describe('ClientController', () => {
         email: 'joao@example.com',
         birthDate: '1990-01-01',
         address: 'Rua 2',
+        preferencesNotes: 'Prefere natural',
       })
       .expect(200);
 
     expect(response.body).toHaveProperty('id', 1);
-    expect(Client.update).toHaveBeenCalled();
+    expect(Client.update).toHaveBeenCalledWith(
+      expect.objectContaining({ preferencesNotes: 'Prefere natural' }),
+      { where: { id: '1', userId: 1 } },
+    );
   });
 
   it('deve deletar cliente do usuário', async () => {
@@ -105,6 +114,7 @@ describe('ClientController', () => {
 
     expect(Client.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: 1 },
+      attributes: clientListAttributes,
     }));
   });
 
@@ -114,6 +124,20 @@ describe('ClientController', () => {
       .expect(400);
 
     expect(response.body).toHaveProperty('error');
+  });
+
+  it('não trafega preferencesNotes nas listagens e sincronização', async () => {
+    Client.findAll.mockResolvedValue([]);
+
+    await request(app).get('/search/sync?lastSync=2023-12-31T00:00:00.000Z').expect(200);
+    await request(app).get('/search/by-name?name=João').expect(404);
+    await request(app).get('/search/by-lastname?lastName=Silva').expect(404);
+    await request(app).get('/search/by-phone?phone=+5511999999999').expect(404);
+
+    for (const [query] of Client.findAll.mock.calls) {
+      expect(query.attributes).toEqual(clientListAttributes);
+      expect(query.attributes).not.toContain('preferencesNotes');
+    }
   });
 });
 

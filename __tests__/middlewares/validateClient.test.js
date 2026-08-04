@@ -148,5 +148,32 @@ describe('validateClient Middleware', () => {
 
     expect(response.body).toHaveProperty('error');
   });
+
+  it('normaliza preferencesNotes com espaços e preserva o texto interno', async () => {
+    const response = await request(app)
+      .post('/client')
+      .send({ ...validPayload, preferencesNotes: '  Prefere natural  ' })
+      .expect(200);
+
+    expect(response.body.body).toHaveProperty('preferencesNotes', 'Prefere natural');
+  });
+
+  it('normaliza preferencesNotes vazias para null', async () => {
+    const response = await request(app)
+      .post('/client')
+      .send({ ...validPayload, preferencesNotes: '   ' })
+      .expect(200);
+
+    expect(response.body.body).toHaveProperty('preferencesNotes', null);
+  });
+
+  it('rejeita preferencesNotes acima de 2000 caracteres', async () => {
+    const response = await request(app)
+      .post('/client')
+      .send({ ...validPayload, preferencesNotes: 'a'.repeat(2001) })
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
 });
 

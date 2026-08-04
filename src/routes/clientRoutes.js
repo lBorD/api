@@ -1,5 +1,6 @@
 ﻿import express from 'express';
 import ClientController from '../controllers/client.js';
+import ClientProfileController from '../controllers/clientProfile.js';
 import validateClient from '../middlewares/validateClient.js';
 import validateClientUpdate from '../middlewares/validateClientUpdate.js';
 import { authenticateToken } from '../middlewares/auth.js';
@@ -12,6 +13,8 @@ router.use(authenticateToken);
 router.post('/register', validateClient, ClientController.registerClient);
 router.patch('/update/:id', validateClientUpdate, ClientController.updateClient);
 router.delete('/delete/:id', ClientController.deleteClient);
+router.get('/:id/profile', ClientProfileController.getProfile);
+router.get('/:id/appointments/history', ClientProfileController.getHistory);
 
 // Rotas de pesquisa de clientes
 router.get('/search/sync', ClientController.listClientsSync);

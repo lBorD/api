@@ -1,6 +1,9 @@
 ﻿import request from 'supertest';
 import express from 'express';
 import clientRoutes from '../../src/routes/clientRoutes.js';
+import Client from '../../src/models/Client.js';
+import Appointment from '../../src/models/Appointment.js';
+import AppointmentService from '../../src/models/AppointmentService.js';
 
 const app = express();
 app.use(express.json());
@@ -94,6 +97,27 @@ describe('Client Routes', () => {
   it('deve retornar 401 sem token', async () => {
     await request(app)
       .get('/clients/search')
+      .expect(401);
+  });
+
+  it('protege as rotas de perfil e histórico da cliente', async () => {
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1, name: 'Maria' });
+    Appointment.findAll.mockResolvedValue([]);
+    AppointmentService.findAll.mockResolvedValue([]);
+    await withAuth(request(app)
+      .get('/clients/1/profile'))
+      .expect(200);
+
+    await withAuth(request(app)
+      .get('/clients/1/appointments/history'))
+      .expect(200);
+
+    await request(app)
+      .get('/clients/1/profile')
+      .expect(401);
+
+    await request(app)
+      .get('/clients/1/appointments/history')
       .expect(401);
   });
 });

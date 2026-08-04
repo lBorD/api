@@ -3,6 +3,10 @@ import dayjs from 'dayjs';
 import Client from '../models/Client.js';
 import { isValidPhoneNumber } from '../utils/phoneValidator.js';
 
+const clientListAttributes = [
+  'id', 'userId', 'name', 'lastName', 'phone', 'email', 'birthDate', 'address', 'createdAt', 'updatedAt',
+];
+
 class ClientController {
   static getUserId(req) {
     return req.user?.id;
@@ -11,9 +15,9 @@ class ClientController {
   static async registerClient(req, res) {
     try {
       const userId = ClientController.getUserId(req);
-      const { name, lastName, phone, email, birthDate, address } = req.body;
+      const { name, lastName, phone, email, birthDate, address, preferencesNotes } = req.body;
 
-      await Client.create({ userId, name, lastName, phone, email, birthDate, address });
+      await Client.create({ userId, name, lastName, phone, email, birthDate, address, preferencesNotes });
       return res.status(201).json({ success: true });
     } catch (error) {
       console.error('Erro ao registrar cliente:', error);
@@ -49,10 +53,10 @@ class ClientController {
     try {
       const userId = ClientController.getUserId(req);
       const { id } = req.params;
-      const { name, lastName, phone, email, birthDate, address } = req.body;
+      const { name, lastName, phone, email, birthDate, address, preferencesNotes } = req.body;
 
       const [updated] = await Client.update(
-        { name, lastName, phone, email, birthDate, address },
+        { name, lastName, phone, email, birthDate, address, preferencesNotes },
         { where: { id, userId } },
       );
 
@@ -118,6 +122,7 @@ class ClientController {
       }
 
       const { count, rows: clients } = await Client.findAndCountAll({
+        attributes: clientListAttributes,
         where,
         limit,
         offset,
@@ -148,6 +153,7 @@ class ClientController {
       const validatedLastSync = lastSync ? dayjs(lastSync).toDate() : dayjs('2000-01-01T00:00:00.000Z').toDate();
 
       const clients = await Client.findAll({
+        attributes: clientListAttributes,
         where: {
           userId,
           updatedAt: { [Op.gt]: validatedLastSync },
@@ -175,6 +181,7 @@ class ClientController {
       }
 
       const clients = await Client.findAll({
+        attributes: clientListAttributes,
         where: {
           userId,
           name: { [Op.like]: `%${name}%` },
@@ -200,6 +207,7 @@ class ClientController {
       }
 
       const clients = await Client.findAll({
+        attributes: clientListAttributes,
         where: {
           userId,
           lastName: { [Op.like]: `%${lastName}%` },
@@ -230,7 +238,10 @@ class ClientController {
         return res.status(400).json({ error: 'Número de telefone inválido.' });
       }
 
-      const clients = await Client.findAll({ where: { userId, phone: validNumber.formatted } });
+      const clients = await Client.findAll({
+        attributes: clientListAttributes,
+        where: { userId, phone: validNumber.formatted },
+      });
 
       if (clients.length === 0) {
         return res.status(404).json({ message: 'Nenhum cliente encontrado com o telefone fornecido.' });

@@ -219,6 +219,17 @@ jest.mock('./src/controllers/client.js', () => ({
   },
 }));
 
+jest.mock('./src/controllers/clientProfile.js', () => ({
+  default: {
+    getProfile: jest.fn((req, res) => res.status(200).json({
+      client: { id: Number(req.params.id), photoUrl: null },
+      upcomingAppointments: [],
+      history: { appointments: [], nextCursor: null },
+    })),
+    getHistory: jest.fn((req, res) => res.status(200).json({ appointments: [], nextCursor: null })),
+  },
+}));
+
 jest.mock('./src/controllers/service.js', () => ({
   default: {
     registerService: jest.fn((req, res) => res.status(201).json({ success: true })),
