@@ -1,101 +1,98 @@
 # API para o BeautyApp
 
-Esta é a API para o **BeautyApp**, um sistema de gerenciamento de salão de beleza. Ela fornece endpoints para autenticação, cadastro de clientes, agendamentos e outras funcionalidades.
-
----
-
-## 📌 Sumário  
-
-- [🚀 Sobre a API BeautyApp](#api-para-o-beautyapp)
-- [⚙️ Pré-requisitos](#pré-requisitos)
-- [📦 Instalação](#instalação)
-  * [🗃️ Clone o Repositório](#1-clone-o-repositório)
-  * [📥 Instale as Dependências](#2-instale-as-dependências)
-  * [🛢️ Configure o Banco de Dados](#3-configure-o-banco-de-dados)
-  * [🔧 Execute as Migrações](#4-execute-as-migrações)
-  * [▶️ Inicie o Servidor](#5-inicie-o-servidor)
-- [🤝 Contribuição](#contribuição)
-- [📜 Licença](#licença)
-  
----
+API do BeautyApp, aplicativo de agenda para profissionais autônomas da beleza.
+Ela atende autenticação, clientes, serviços e agendamentos.
 
 ## Pré-requisitos
 
-Antes de começar, certifique-se de que você tem os seguintes itens instalados e configurados:
+- Node.js 18.20.6 ou superior.
+- PostgreSQL.
+- Git (opcional).
 
-1. **Node.js**: Versão 18.20.6 ou superior.
-   - [Download do Node.js](https://nodejs.org/)
+## Instalação local
 
-2. **PostgreSQL**: Banco de dados utilizado pela API.
-   - [Download do PostgreSQL](https://www.postgresql.org/download/)
-
-3. **Git** (opcional): Para clonar o repositório.
-   - [Download do Git](https://git-scm.com/)
-
----
-
-## Instalação
-
-Siga os passos abaixo para configurar e rodar o projeto:
-
-### 1. Clone o Repositório
-
-Se você estiver usando Git, clone o repositório:
-
-```bash
-git clone https://github.com/seu-usuario/beautyapp-api.git
-cd beautyapp-api
-```
-
-### 2. Instale as Dependências
-
-Instale as dependências do projeto usando o npm:
+Clone o repositório e instale as dependências:
 
 ```bash
 npm install
 ```
 
-### 3. Configure o Banco de Dados
+Configure uma instância PostgreSQL própria para desenvolvimento ou testes com
+as variáveis de ambiente locais do projeto. Não registre credenciais, tokens ou
+URLs de banco neste repositório.
 
-Crie um banco de dados MySQL e configure as credenciais no arquivo `.env`:
-Acesse o MySQL e crie o banco de dados:
-
-```sql
-postgres -u postgres -p
-```
-
-```sql
-CREATE DATABASE beautyapp;
-exit;
-```
-
-```env
-DB_NAME=beautyapp
-DB_USER=seu-usuario
-DB_PASSWORD=sua-senha
-DB_HOST=localhost
-DB_DIALECT=postgres
-```
-
-### 4. Execute as Migrações
-
-Execute as migrações para criar as tabelas no banco de dados:
+Execute migrações somente depois de confirmar que o alvo é um banco local ou
+explicitamente descartável. Nunca use este comando como instrução de execução
+automática em produção:
 
 ```bash
 npx sequelize db:migrate
 ```
 
-### 5. Inicie o Servidor
-
-Inicie o servidor da API:
+Para iniciar o servidor:
 
 ```bash
 npm run start
 ```
 
-A API estará disponível em `http://localhost:3000`.
+A API fica disponível em `http://localhost:3000`.
 
----
+## Perfil operacional da cliente (API 1.3.0)
+
+Todas as rotas abaixo exigem autenticação Bearer e sempre são isoladas pelo
+usuário autenticado. Uma cliente inexistente ou pertencente a outra usuária
+retorna o mesmo `404`.
+
+| Método e rota | Resposta/uso |
+| --- | --- |
+| `GET /clients/:id/profile` | Retorna o cadastro enxuto, até quatro próximos atendimentos e até quatro itens de histórico. |
+| `GET /clients/:id/appointments/history?limit&cursor` | Retorna página posterior; `limit` aceita inteiros de 1 a 20 e vale 10 por padrão. `cursor` é opaco/Base64URL e vem em `nextCursor`. |
+| `PUT /clients/:id/photo` | Recebe uma única imagem no campo multipart `photo` e retorna `{ photoUrl, photoUpdatedAt }`. |
+| `GET /clients/:id/photo` | Retorna somente os bytes WebP autenticados da foto. |
+| `DELETE /clients/:id/photo` | Remove a foto e responde `204`. |
+
+O DTO de `client` do perfil contém `id`, `name`, `lastName`, `phone`, `email`,
+`birthDate`, `address`, `preferencesNotes`, `photoUrl` e `photoUpdatedAt`.
+Cada atendimento contém somente `id`, `clientId`, `startAt`, `endAt`, `status`,
+`notes`, `serviceIds`, `services` e `serviceName`. Preço, sinal, campos de
+Google Calendar, BLOBs e Base64 não fazem parte desse contrato.
+
+`preferencesNotes` é uma nota interna e opcional: é normalizada com `trim`,
+texto vazio vira `null` e o máximo é 2.000 caracteres. Ela pode constar do
+cadastro/edição e do perfil, mas não trafega em listagens ou sincronização
+normal de clientes.
+
+Atendimentos com `status = canceled` ou `archivedAt` preenchido nunca aparecem
+nem trafegam no perfil, nos próximos atendimentos ou no histórico.
+
+### Foto privada e cache
+
+O upload aceita apenas JPEG, PNG ou WebP de até 5 MiB e 16 megapixels. A imagem
+é validada pelo conteúdo, orientada, recortada e convertida para WebP de
+512 × 512 px com saída máxima de 512 KiB. Erro de tamanho retorna `413`; campo
+ausente, campos extras ou mais de um arquivo retornam `400`; conteúdo inválido
+retorna `415`.
+
+A leitura devolve `Content-Type: image/webp`, `Content-Length`, `ETag`,
+`X-Content-Type-Options: nosniff` e `Cache-Control: private, max-age=86400,
+must-revalidate`. Clientes podem enviar `If-None-Match` e receber `304` sem
+corpo. Como a rota é autenticada e o cache é privado, a foto não deve ser
+compartilhada por caches públicos.
+
+### Persistência e concorrência
+
+Hoje os bytes e metadados da foto são persistidos em PostgreSQL, na tabela
+separada `client_photos`. A API os acessa exclusivamente pela fronteira
+`clientPhotoStorage`; uma implementação futura S3-compatible pode substituir
+esse adaptador sem alterar rotas, DTOs ou semântica HTTP. Não há bucket, IAM,
+secrets ou lifecycle provisionados por esta versão, e o app beta ainda não
+consome as rotas de foto.
+
+Substituir ou remover foto ocorre em transação e bloqueia a cliente com `FOR
+UPDATE`, sempre no escopo `{ userId, clientId }`. Assim, ownership, criação,
+atualização e remoção não expõem dados entre usuárias nem concorrem com a
+remoção da cliente. Um conflito único encerra a transação com rollback; não há
+tentativa de reutilizar uma transação PostgreSQL já abortada.
 
 ## Monitoramento no Render
 
@@ -113,27 +110,12 @@ Resposta esperada:
 }
 ```
 
-Para manter a instância gratuita do Render ativa durante a fase de MVP, configure
-um monitor HTTP no UptimeRobot com:
-
-- URL: `https://api-h1hk.onrender.com/health`
-- método: `GET`
-- intervalo: 5 minutos
-- resposta esperada: HTTP `200`
-
-O endpoint não consulta banco de dados nem integrações externas. Ele verifica
-somente se o processo HTTP da API está respondendo.
-
----
-
-## Contribuição
-
-O BeautyApp é um projeto privado, desenvolvido como parte do portfólio pessoal de seu criador Gabriel Ribeiro e com potencial para comercialização futura.
-
-O código-fonte não está disponível para contribuições externas e o aplicativo será distribuído conforme estratégias comerciais definidas futuramente.
-
----
+Para manter a instância gratuita do Render ativa durante a fase de MVP, é
+possível configurar um monitor HTTP no UptimeRobot para
+`https://api-h1hk.onrender.com/health`, com método `GET`, intervalo de cinco
+minutos e resposta HTTP `200`. O endpoint não consulta banco de dados nem
+integrações externas.
 
 ## Licença
 
-Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Este projeto está licenciado sob a licença MIT. Veja [LICENSE](LICENSE).

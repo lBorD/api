@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 - 2026-08-03
+
+- Adiciona o contrato autenticado de perfil operacional da cliente, com
+  preferências internas, próximos atendimentos e histórico paginado por cursor.
+- Adiciona foto privada de cliente com normalização WebP, cache privado por
+  `ETag` e persistência atual em PostgreSQL atrás de uma fronteira preparada
+  para armazenamento S3-compatible futuro.
+- Mantém cancelados e arquivados fora do perfil e documenta limites, DTOs,
+  isolamento por usuária, transação e lock das operações de foto.
+- Documenta que não há bucket, IAM ou secrets provisionados e que o app beta
+  ainda não consome as rotas de foto.
+
 ## 1.1.1 - 2026-07-16
 
 - Adiciona `GET /health` público e sem dependências externas para monitoramento da API.

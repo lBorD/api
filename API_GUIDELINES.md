@@ -1,102 +1,68 @@
-# Guia de desenvolvimento da API (Express + Postgres)
+# Guia de desenvolvimento da API (Express + PostgreSQL)
 
-Este documento orienta decisões técnicas e de produto durante o desenvolvimento da API do **BeautyApp**.
+Este documento orienta decisões técnicas e de produto da API do BeautyApp,
+um aplicativo de agenda simples para profissionais autônomas da beleza.
 
-## Visão geral
+## Princípios
 
-A API serve um aplicativo mobile de agenda simples para profissionais autônomos (ex.: lash designer, manicure, cabeleireira, esteticista).
+- Implementar apenas o que reduz atrito em agenda, clientes e serviços.
+- Manter endpoints específicos, payloads previsíveis e respostas enxutas.
+- Proteger toda rota privada e filtrar dados por `req.user.id`.
+- Consultar agenda por janela de tempo; usar índices, paginação e limites.
+- Tratar integrações externas como complementares: falhas nelas não podem
+  impedir o fluxo local de agenda.
+- Não recriar endpoint de sugestões de horário.
 
-Objetivo do produto: reduzir a fricção no dia a dia dessas profissionais, substituindo fluxos manuais com:
-- WhatsApp
-- Google Calendar
-- calculadora
-- controle mental de clientes e serviços
+## Agendamentos
 
-Não é um ERP.  
-O foco é ser rápida, simples e confiável para fluxos reais do app.
+- Criação e edição devem detectar sobreposição e responder `409` sem
+  confirmação explícita.
+- `allowConflict: true` só pode ser aceito após confirmação explícita no app.
+- O app envia `serviceIds`; a API calcula `endAt` e preserva preço/duração dos
+  serviços no instante do agendamento.
 
-## Filosofia de desenvolvimento
+## Perfil operacional da cliente
 
-- Implementar apenas o que reduz atrito no uso do app.
-- Priorizar respostas previsíveis e rápidas.
-- Manter os modelos de domínio pequenos e objetivos.
-- Evitar “features enterprise” que não impactam diretamente agendamento, clientes e serviços.
+- As rotas privadas do perfil sempre consultam por `req.user.id`; cliente
+  inexistente e cliente de outra usuária respondem o mesmo `404`.
+- `GET /clients/:id/profile` retorna somente o cadastro necessário, no máximo
+  quatro próximos atendimentos e quatro históricos. A paginação posterior usa
+  cursor opaco e `limit` inteiro de 1 a 20 (padrão 10).
+- `status = canceled` e `archivedAt IS NOT NULL` ficam fora de todos os
+  payloads do perfil, inclusive próximos e histórico.
+- O DTO de atendimento é operacional: não incluir preço, sinal, campos Google
+  Calendar, BLOBs ou Base64.
+- `preferencesNotes` é interno: opcional, trimado, vazio como `null` e limitado
+  a 2.000 caracteres. Pode ser usado no cadastro, edição e perfil, mas nunca
+  em listagens ou sincronização de clientes.
 
-## Princípios de arquitetura
+## Fotos de clientes
 
-### Endpoints pequenos e específicos
+- As rotas `PUT`, `GET` e `DELETE /clients/:id/photo` são autenticadas e só
+  operam no escopo `{ userId, clientId }`.
+- Aceitar uma única imagem JPEG, PNG ou WebP de até 5 MiB e 16 megapixels;
+  normalizar para WebP 512 × 512 e no máximo 512 KiB. Validar o conteúdo real,
+  nunca nome ou extensão do arquivo.
+- O JSON expõe somente `photoUrl` relativo e `photoUpdatedAt`; bytes/base64
+  jamais entram em JSON, listagens ou sincronização.
+- A resposta binária usa cache privado revalidável (`private, max-age=86400,
+  must-revalidate`), `ETag` e `X-Content-Type-Options: nosniff`. Suportar
+  `If-None-Match` com `304`.
+- A persistência atual é PostgreSQL pela fronteira `clientPhotoStorage`. Uma
+  troca futura por armazenamento S3-compatible não pode alterar rotas, DTOs ou
+  semântica HTTP. Esta entrega não cria bucket, IAM, secrets ou lifecycle, pois
+  o app beta ainda não consome foto.
+- Escritas e remoções usam transação e lock `FOR UPDATE` na cliente, sempre
+  escopados por usuária. Após conflito único, a transação PostgreSQL é abortada:
+  fazer rollback e nunca retry dentro da mesma transação.
 
-Nunca usar endpoints genéricos e pesados.
+## Como revisar uma mudança
 
-- ✅ Preferir:
-  - `GET /appointments?from=2026-03-10&to=2026-03-11`
-- ❌ Evitar:
-  - `GET /appointments` retornando tudo.
-
-### Respostas enxutas
-
-Cada tela do app deve receber apenas os campos necessários.
-
-Exemplo de resposta ideal para appointment:
-- `id`
-- `start_at`
-- `end_at`
-- `client_name`
-- `service_name`
-- `price`
-- `deposit_amount`
-- `status`
-
-### Performance
-
-Consultas de agenda são frequentes e devem ser rápidas.
-
-Regras obrigatórias:
-- Usar índices adequados (ex.: `appointments(user_id, start_at)`).
-- Consultar por janela de tempo (`from`, `to`) sempre que possível.
-- Evitar `joins` desnecessários.
-- Evitar retorno de listas grandes.
-- Paginar quando necessário, por padrão.
-
-### Responsividade mobile
-
-O app usa atualização otimista, então:
-- respostas devem ser rápidas;
-- evitar operações síncronas longas;
-- manter o fluxo principal estável mesmo com dependências lentas.
-
-### Conflitos de horário
-
-- Criação e edição de agendamentos devem continuar detectando sobreposição.
-- Sem confirmação explícita, a API responde `409` para que o app avise a profissional.
-- Com `allowConflict: true`, enviado após a confirmação no app, a API deve salvar o agendamento mesmo com conflito.
-
-## Modelo de domínio (mínimo viável)
-
-- `users`
-- `clients`
-- `services`
-- `appointments`
-
-Essas entidades devem permanecer simples e focadas em operações de agenda.
-
-## Integrações externas
-
-- Integrações como Google Calendar são complementares, não críticas.
-- Se uma integração falhar, o fluxo principal (agenda local) continua funcionando.
-- Processar integrações fora do fluxo principal sempre que possível (assíncrono, fila ou job).
-
-## Objetivo final da API
-
-- Rápida
-- Simples
-- Confiável
-- Focada em agendamento
-
-## Como usar este documento
-
-Ao desenvolver ou revisar qualquer feature:
-1. Validar se ela reduz fricção da profissional no dia a dia.
-2. Verificar se os endpoints seguem o princípio de responsabilidade única e retorno mínimo.
-3. Confirmar impacto de performance (índices, filtros por data, payload menor).
-4. Garantir que falhas externas não quebram os fluxos centrais do app.
+1. Confirmar que reduz atrito para a profissional e preserva o escopo do MVP.
+2. Verificar autenticação, isolamento por usuário e validação de entrada.
+3. Confirmar limites, índices, filtros e tamanho do payload.
+4. Adicionar ou ajustar testes ao mudar contrato HTTP, validação ou regra de
+   negócio.
+5. Não registrar credenciais, tokens, URLs de banco ou outros secrets.
+6. Executar migrações somente em ambiente local ou explicitamente descartável;
+   nunca assumir autorização para produção.
