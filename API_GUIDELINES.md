@@ -38,6 +38,10 @@ um aplicativo de agenda simples para profissionais autônomas da beleza.
 
 ## Fotos de clientes
 
+- Durante o beta, `CLIENT_PHOTO_ENABLED` é default-off e só habilita foto para
+  o valor literal `true`; a flag é proibida em produção beta. Sem opt-in, as
+  três rotas respondem `404` genérico antes de ownership, Multer ou controller,
+  e o perfil devolve metadados nulos sem consultar `client_photos`.
 - As rotas `PUT`, `GET` e `DELETE /clients/:id/photo` são autenticadas e só
   operam no escopo `{ userId, clientId }`.
 - Aceitar uma única imagem JPEG, PNG ou WebP de até 5 MiB e 16 megapixels;
@@ -55,6 +59,13 @@ um aplicativo de agenda simples para profissionais autônomas da beleza.
 - Escritas e remoções usam transação e lock `FOR UPDATE` na cliente, sempre
   escopados por usuária. Após conflito único, a transação PostgreSQL é abortada:
   fazer rollback e nunca retry dentro da mesma transação.
+- O runtime atual usa `sharp@0.34.0`, com alerta HIGH no audit. Enquanto a foto
+  está desligada, bloquear em profundidade `VipsForeignLoadNsgif`,
+  `VipsForeignLoadTiff` e `VipsForeignLoadVips` no carregamento do processador.
+  Esta mitigação não elimina a necessidade de Sharp corrigido.
+- A ativação futura exige, conjuntamente, Node.js >= 20.9, Sharp corrigido,
+  adaptador S3-compatible provisionado e entrega mobile específica. PostgreSQL
+  atual é provisório e não é autorização de lançamento.
 
 ## Como revisar uma mudança
 

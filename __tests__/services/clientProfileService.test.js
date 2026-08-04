@@ -57,7 +57,7 @@ describe('clientProfileService', () => {
       return Promise.resolve(where.startAt[Op.gte] ? [upcomingAppointment] : [historyAppointment]);
     });
 
-    const profile = await loadClientProfile({ userId: 7, clientId: 12, now });
+    const profile = await loadClientProfile({ userId: 7, clientId: 12, now, includePhoto: true });
 
     expect(Appointment.findAll).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: expect.objectContaining({
@@ -120,14 +120,14 @@ describe('clientProfileService', () => {
     expect(JSON.stringify(profile)).not.toMatch(/price|depositAmount|google/i);
   });
 
-  it('consulta somente metadados da foto em paralelo aos agendamentos do perfil', async () => {
+  it('consulta somente metadados da foto em paralelo aos agendamentos do perfil quando opt-in', async () => {
     let resolvePhoto;
     ClientPhoto.findOne.mockImplementation(() => new Promise((resolve) => {
       resolvePhoto = resolve;
     }));
     Appointment.findAll.mockResolvedValue([]);
 
-    const profilePromise = loadClientProfile({ userId: 7, clientId: 12, now });
+    const profilePromise = loadClientProfile({ userId: 7, clientId: 12, now, includePhoto: true });
 
     expect(ClientPhoto.findOne).toHaveBeenCalledWith({
       attributes: ['mimeType', 'byteSize', 'checksum', 'width', 'height', 'updatedAt'],
@@ -137,6 +137,15 @@ describe('clientProfileService', () => {
 
     resolvePhoto(null);
     await expect(profilePromise).resolves.toMatchObject({ photo: null });
+  });
+
+  it('não consulta metadados da foto quando o perfil desativa a inclusão', async () => {
+    Appointment.findAll.mockResolvedValue([]);
+
+    const profile = await loadClientProfile({ userId: 7, clientId: 12, now, includePhoto: false });
+
+    expect(profile.photo).toBeNull();
+    expect(ClientPhoto.findOne).not.toHaveBeenCalled();
   });
 
   it('pagina empate de horário usando id como desempate', async () => {

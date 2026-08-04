@@ -28,6 +28,10 @@ describe('Client Routes', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    delete process.env.CLIENT_PHOTO_ENABLED;
+  });
+
   it('deve registrar cliente com sucesso', async () => {
     const response = await withAuth(request(app)
       .post('/clients/register')
@@ -140,6 +144,7 @@ describe('Client Routes', () => {
   });
 
   it('executa o upload antes do handler PUT de foto autenticado', async () => {
+    process.env.CLIENT_PHOTO_ENABLED = 'true';
     Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
     ClientPhoto.update.mockResolvedValue([1]);
     ClientPhoto.findOne.mockResolvedValue(photoMetadata);
@@ -158,6 +163,7 @@ describe('Client Routes', () => {
   });
 
   it('confirma propriedade antes de aceitar ou limitar o multipart da foto', async () => {
+    process.env.CLIENT_PHOTO_ENABLED = 'true';
     Client.findOne.mockResolvedValue(null);
 
     await withAuth(request(app)
@@ -166,6 +172,23 @@ describe('Client Routes', () => {
       .expect(404, { error: 'Cliente não encontrado.' });
 
     expect(ClientPhoto.update).not.toHaveBeenCalled();
+  });
+
+  it('oculta as três rotas de foto antes de ownership, upload ou controller durante o beta', async () => {
+    delete process.env.CLIENT_PHOTO_ENABLED;
+    Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+
+    await withAuth(request(app)
+      .put('/clients/1/photo')
+      .attach('photo', Buffer.from('not-an-image'), 'photo.png'))
+      .expect(404, { error: 'Não encontrado.' });
+    await withAuth(request(app).get('/clients/1/photo')).expect(404, { error: 'Não encontrado.' });
+    await withAuth(request(app).delete('/clients/1/photo')).expect(404, { error: 'Não encontrado.' });
+
+    expect(Client.findOne).not.toHaveBeenCalled();
+    expect(ClientPhoto.findOne).not.toHaveBeenCalled();
+    expect(ClientPhoto.update).not.toHaveBeenCalled();
+    expect(ClientPhoto.destroy).not.toHaveBeenCalled();
   });
 });
 

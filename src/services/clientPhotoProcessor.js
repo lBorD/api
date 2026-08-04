@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 
+sharp.block({ operation: ['VipsForeignLoadNsgif', 'VipsForeignLoadTiff', 'VipsForeignLoadVips'] });
+
 const MAX_INPUT_PIXELS = 16_000_000;
 const MAX_INPUT_BYTES = 5 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = 512 * 1024;

@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { processClientPhoto } from '../../src/services/clientPhotoProcessor.js';
 
 const validPngBuffer = Buffer.from(
@@ -10,6 +11,24 @@ const corruptBuffer = Buffer.from('not-an-image');
 const svgBuffer = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
 
 describe('processClientPhoto', () => {
+  it('bloqueia os loaders vulneráveis ao carregar o módulo', () => {
+    const script = `import sharp from 'sharp';
+let options = null;
+const originalBlock = sharp.block;
+sharp.block = (value) => { options = value; return originalBlock.call(sharp, value); };
+await import('./src/services/clientPhotoProcessor.js');
+process.stdout.write(JSON.stringify(options));`;
+
+    const output = execFileSync(process.execPath, ['--input-type=module', '--eval', script], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    });
+
+    expect(JSON.parse(output)).toEqual({
+      operation: ['VipsForeignLoadNsgif', 'VipsForeignLoadTiff', 'VipsForeignLoadVips'],
+    });
+  });
+
   it('orienta, recorta e converte uma entrada PNG valida para WebP 512 sem metadados', async () => {
     const result = await processClientPhoto(validPngBuffer);
     const metadata = await sharp(result.data).metadata();

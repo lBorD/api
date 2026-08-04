@@ -146,7 +146,8 @@ describe('ClientProfileController', () => {
     expect(Appointment.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 21 }));
   });
 
-  it('inclui somente metadados da foto versionados no perfil inicial', async () => {
+  it('inclui somente metadados da foto versionados no perfil inicial com opt-in', async () => {
+    process.env.CLIENT_PHOTO_ENABLED = 'true';
     Client.findOne.mockResolvedValue(clientFixture);
     ClientPhoto.findOne.mockResolvedValue({ ...photoRow, data: undefined });
     Appointment.findAll.mockResolvedValue([]);
@@ -162,6 +163,21 @@ describe('ClientProfileController', () => {
       attributes: ['mimeType', 'byteSize', 'checksum', 'width', 'height', 'updatedAt'],
       where: { userId: 7, clientId: 1 },
     });
+  });
+
+  it('mantém metadados de foto nulos no perfil beta sem consultar client_photos', async () => {
+    delete process.env.CLIENT_PHOTO_ENABLED;
+    Client.findOne.mockResolvedValue(clientFixture);
+    ClientPhoto.findOne.mockResolvedValue({ ...photoRow, data: undefined });
+    Appointment.findAll.mockResolvedValue([]);
+
+    const response = await request(app).get('/1/profile').expect(200);
+
+    expect(response.body.client).toMatchObject({ photoUrl: null, photoUpdatedAt: null });
+    const metadataQueries = ClientPhoto.findOne.mock.calls
+      .map(([options]) => options)
+      .filter(({ attributes }) => Array.isArray(attributes) && attributes.includes('checksum'));
+    expect(metadataQueries).toEqual([]);
   });
 
   it('rejeita upload inválido antes de ler ou mutar fotos', async () => {

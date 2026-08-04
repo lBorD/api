@@ -2,6 +2,10 @@
 
 ## 1.3.0 - 2026-08-03
 
+- Desativa as rotas de foto por padrão durante o beta, com opt-in estrito e
+  resposta `404` genérica antes de ownership ou processamento.
+- Evita consulta de metadados de foto no perfil quando a feature está desligada
+  e bloqueia os loaders vulneráveis do Sharp como defesa em profundidade.
 - Adiciona o contrato autenticado de perfil operacional da cliente, com
   preferências internas, próximos atendimentos e histórico paginado por cursor.
 - Adiciona foto privada de cliente com normalização WebP, cache privado por

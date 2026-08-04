@@ -51,6 +51,13 @@ retorna o mesmo `404`.
 | `GET /clients/:id/photo` | Retorna somente os bytes WebP autenticados da foto. |
 | `DELETE /clients/:id/photo` | Remove a foto e responde `204`. |
 
+Durante o beta, as três rotas de foto ficam desativadas por padrão. Somente o
+valor literal `CLIENT_PHOTO_ENABLED=true` as habilita; qualquer outro valor,
+inclusive ausência, responde `404` genérico antes de ownership, multipart ou
+processamento. A flag é proibida na produção beta. Com a foto desativada, o
+perfil retorna `photoUrl` e `photoUpdatedAt` como `null` sem consultar
+`client_photos`.
+
 O DTO de `client` do perfil contém `id`, `name`, `lastName`, `phone`, `email`,
 `birthDate`, `address`, `preferencesNotes`, `photoUrl` e `photoUpdatedAt`.
 Cada atendimento contém somente `id`, `clientId`, `startAt`, `endAt`, `status`,
@@ -66,6 +73,12 @@ Atendimentos com `status = canceled` ou `archivedAt` preenchido nunca aparecem
 nem trafegam no perfil, nos próximos atendimentos ou no histórico.
 
 ### Foto privada e cache
+
+O alerta HIGH atual de `sharp@0.34.0` mantém a funcionalidade desativada no
+beta. Como defesa em profundidade, o carregamento do processador bloqueia os
+loaders `VipsForeignLoadNsgif`, `VipsForeignLoadTiff` e `VipsForeignLoadVips`.
+Isso mitiga a superfície enquanto a flag permanece desligada, mas não substitui
+uma atualização da dependência.
 
 O upload aceita apenas JPEG, PNG ou WebP de até 5 MiB e 16 megapixels. A imagem
 é validada pelo conteúdo, orientada, recortada e convertida para WebP de
@@ -93,6 +106,13 @@ UPDATE`, sempre no escopo `{ userId, clientId }`. Assim, ownership, criação,
 atualização e remoção não expõem dados entre usuárias nem concorrem com a
 remoção da cliente. Um conflito único encerra a transação com rollback; não há
 tentativa de reutilizar uma transação PostgreSQL já abortada.
+
+### Checklist para uma ativação futura
+
+Não ativar foto até que todos os itens estejam concluídos: Node.js >= 20.9,
+Sharp corrigido e compatível com esse runtime, adaptador S3-compatible
+provisionado e validado, e entrega mobile específica que consuma o contrato.
+O armazenamento atual em PostgreSQL é provisório e não autoriza lançamento.
 
 ## Monitoramento no Render
 

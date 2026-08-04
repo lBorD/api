@@ -1,4 +1,5 @@
 import Client from '../models/Client.js';
+import { isClientPhotoEnabled } from '../config/clientPhotoFeature.js';
 import {
   loadClientHistory,
   loadClientProfile,
@@ -95,7 +96,11 @@ class ClientProfileController {
         return clientNotFound(res);
       }
 
-      const { photo, ...profile } = await loadClientProfile({ userId: req.user.id, clientId: id });
+      const { photo, ...profile } = await loadClientProfile({
+        userId: req.user.id,
+        clientId: id,
+        includePhoto: isClientPhotoEnabled(),
+      });
       return res.status(200).json({ client: serializeClient(client, photo, id), ...profile });
     } catch (error) {
       console.error('Erro ao buscar perfil da cliente:', error);

@@ -4,6 +4,7 @@ import ClientProfileController from '../controllers/clientProfile.js';
 import validateClient from '../middlewares/validateClient.js';
 import validateClientUpdate from '../middlewares/validateClientUpdate.js';
 import clientPhotoUpload from '../middlewares/clientPhotoUpload.js';
+import requireClientPhotoFeature from '../middlewares/requireClientPhotoFeature.js';
 import { authenticateToken } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -18,12 +19,13 @@ router.get('/:id/profile', ClientProfileController.getProfile);
 router.get('/:id/appointments/history', ClientProfileController.getHistory);
 router.put(
   '/:id/photo',
+  requireClientPhotoFeature,
   ClientProfileController.validatePhotoOwnership,
   clientPhotoUpload,
   ClientProfileController.putPhoto,
 );
-router.get('/:id/photo', ClientProfileController.getPhoto);
-router.delete('/:id/photo', ClientProfileController.deletePhoto);
+router.get('/:id/photo', requireClientPhotoFeature, ClientProfileController.getPhoto);
+router.delete('/:id/photo', requireClientPhotoFeature, ClientProfileController.deletePhoto);
 
 // Rotas de pesquisa de clientes
 router.get('/search/sync', ClientController.listClientsSync);
