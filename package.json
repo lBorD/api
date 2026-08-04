@@ -35,9 +35,11 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.4",
+    "multer": "2.2.0",
     "pg": "^8.14.1",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.5",
+    "sharp": "0.34.0",
     "validator": "^13.12.0"
   },
   "devDependencies": {

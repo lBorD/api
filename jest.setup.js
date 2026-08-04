@@ -47,6 +47,7 @@ jest.mock('sequelize', () => {
       findOne: jest.fn().mockResolvedValue(null),
       findByPk: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
+      upsert: jest.fn().mockResolvedValue([{}, true]),
       bulkCreate: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue([1]),
       destroy: jest.fn().mockResolvedValue(1),
