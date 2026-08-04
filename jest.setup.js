@@ -15,11 +15,12 @@ function env(key, value) {
 }
 
 const DataTypes = {
-  STRING: 'STRING',
+  STRING: (length) => (length ? `STRING(${length})` : 'STRING'),
   INTEGER: 'INTEGER',
   DATE: 'DATE',
   TEXT: 'TEXT',
   BOOLEAN: 'BOOLEAN',
+  BLOB: 'BLOB',
   DECIMAL: () => 'DECIMAL',
 };
 
@@ -29,6 +30,9 @@ const Op = {
   in: Symbol.for('in'),
   gt: Symbol.for('gt'),
   lt: Symbol.for('lt'),
+  gte: Symbol.for('gte'),
+  lte: Symbol.for('lte'),
+  eq: Symbol.for('eq'),
   ne: Symbol.for('ne'),
   and: Symbol.for('and'),
   or: Symbol.for('or'),
@@ -57,6 +61,9 @@ jest.mock('sequelize', () => {
 
   const Sequelize = jest.fn(() => mSequelize);
   Sequelize.DataTypes = DataTypes;
+  Sequelize.Op = Op;
+  Sequelize.literal = jest.fn((value) => value);
+  Object.assign(Sequelize, DataTypes);
 
   return {
     Sequelize,
@@ -154,6 +161,18 @@ jest.mock('./src/models/AppointmentService.js', () => ({
     destroy: jest.fn(),
     findAll: jest.fn().mockResolvedValue([]),
     findAndCountAll: jest.fn().mockResolvedValue({ count: 0, rows: [] }),
+  },
+}));
+
+jest.mock('./src/models/ClientPhoto.js', () => ({
+  default: {
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    upsert: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    findAll: jest.fn().mockResolvedValue([]),
   },
 }));
 
