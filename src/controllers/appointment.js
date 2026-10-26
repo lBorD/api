@@ -153,17 +153,64 @@ const buildAppointmentServiceRows = (appointmentId, services) => services.map((s
   sortOrder: index,
 }));
 
-const loadCurrentServiceIds = async (appointment) => {
+// O snapshot de cada servico do agendamento, na ordem de exibicao. A chave e o
+// serviceId porque e por ele que a selecao enviada pelo app e comparada.
+const loadAppointmentServiceSnapshots = async (appointmentId) => {
   const appointmentServices = await AppointmentService.findAll({
-    where: { appointmentId: appointment.id },
+    where: { appointmentId },
     order: [['sortOrder', 'ASC'], ['id', 'ASC']],
   });
 
-  if (appointmentServices.length > 0) {
-    return appointmentServices.map((item) => Number(item.serviceId));
+  return new Map(appointmentServices.map((item) => [Number(item.serviceId), {
+    id: Number(item.serviceId),
+    name: item.serviceName,
+    price: item.price,
+    estimatedTime: item.estimatedTime,
+  }]));
+};
+
+// Preco e duracao ficam congelados no momento em que o servico entra no
+// agendamento: editar horario, cliente ou observacao nao pode re-estampar a
+// tabela de precos de hoje. Por isso o catalogo vivo e consultado somente para
+// os ids que ainda nao estao no agendamento - o que tambem mantem editavel um
+// agendamento cujo servico ja saiu do catalogo.
+//
+// Com `refreshPrices` a usuaria esta adotando de proposito o reajuste neste
+// agendamento, entao o catalogo passa a valer para todos os ids. Servico que
+// saiu do catalogo continua vindo do snapshot: adotar um reajuste nao pode
+// tornar o agendamento ineditavel.
+const resolveServicesForUpdate = async (userId, serviceIds, snapshots, refreshPrices = false) => {
+  const addedIds = serviceIds.filter((serviceId) => !snapshots.has(Number(serviceId)));
+  const catalogIds = refreshPrices ? serviceIds : addedIds;
+
+  let catalogById = new Map();
+  if (catalogIds.length > 0) {
+    const catalogServices = await Service.findAll({
+      where: {
+        id: { [Op.in]: catalogIds },
+        userId,
+        active: true,
+      },
+    });
+
+    catalogById = new Map(catalogServices.map((service) => [Number(service.id), service]));
   }
 
-  return normalizeServiceIds({}, appointment.serviceId);
+  // Id novo que o catalogo nao conhece continua sendo erro: nao da para agendar
+  // um servico que a usuaria nao oferece mais.
+  if (addedIds.some((serviceId) => !catalogById.has(Number(serviceId)))) {
+    return null;
+  }
+
+  const resolvedServices = serviceIds.map((serviceId) => {
+    const id = Number(serviceId);
+
+    return refreshPrices
+      ? catalogById.get(id) || snapshots.get(id)
+      : snapshots.get(id) || catalogById.get(id);
+  });
+
+  return resolvedServices.every(Boolean) ? resolvedServices : null;
 };
 
 const normalizeAppointmentServicesForPayload = (appointment) => {
@@ -438,17 +485,24 @@ class AppointmentController {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
+      const snapshots = await loadAppointmentServiceSnapshots(appointment.id);
+      const currentServiceIds = snapshots.size > 0
+        ? [...snapshots.keys()]
+        : normalizeServiceIds({}, appointment.serviceId);
+
       const serviceIds = hasServiceSelection(req.body)
         ? normalizeServiceIds(req.body)
-        : await loadCurrentServiceIds(appointment);
+        : currentServiceIds;
 
       if (!serviceIds || serviceIds.length === 0) {
         return res.status(400).json({ error: 'Informe ao menos um servico.' });
       }
 
+      const refreshPrices = req.body.refreshPrices === true;
+
       const [client, services] = await Promise.all([
         Client.findOne({ where: { id: nextClientId, userId } }),
-        loadServicesByIds(userId, serviceIds),
+        resolveServicesForUpdate(userId, serviceIds, snapshots, refreshPrices),
       ]);
 
       if (!client) {
