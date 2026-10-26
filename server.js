@@ -10,6 +10,7 @@ import {
   googleCalendarIntegrationRoutes,
   userRoutes,
   healthRoutes,
+  statusRoutes,
 } from './src/routes/index.js';
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/appointments', appointmentRoutes);
 app.use('/integrations/google-calendar', googleCalendarIntegrationRoutes);
 app.use('/users', userRoutes);
 app.use('/health', healthRoutes);
+app.use('/status', statusRoutes);
 
 const port = process.env.PORT || 3000;
 
