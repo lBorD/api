@@ -5,6 +5,7 @@ import appointmentRoutes from './appointmentRoutes.js';
 import googleCalendarIntegrationRoutes from './googleCalendarIntegrationRoutes.js';
 import userRoutes from './public/userRoutes.js';
 import healthRoutes from './healthRoutes.js';
+import statusRoutes from './statusRoutes.js';
 
 export {
   authRoutes,
@@ -14,4 +15,5 @@ export {
   googleCalendarIntegrationRoutes,
   userRoutes,
   healthRoutes,
+  statusRoutes,
 };
