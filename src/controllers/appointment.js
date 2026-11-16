@@ -4,10 +4,12 @@ import Appointment from '../models/Appointment.js';
 import AppointmentService from '../models/AppointmentService.js';
 import Client from '../models/Client.js';
 import Service from '../models/Service.js';
+import User from '../models/User.js';
 import {
   getInitialGoogleSyncStatus,
   queueAppointmentGoogleSync,
 } from '../services/googleCalendarSyncService.js';
+import { getActorId, getDisplayName } from '../utils/account.js';
 
 const ALLOWED_STATUS = ['scheduled', 'canceled', 'completed'];
 const DEFAULT_DEPOSIT_RATE = 0.3;
@@ -19,6 +21,14 @@ if (typeof Appointment?.belongsTo === 'function') {
 
   if (!Appointment.associations || !Appointment.associations.service) {
     Appointment.belongsTo(Service, { foreignKey: 'serviceId', as: 'service' });
+  }
+
+  if (!Appointment.associations || !Appointment.associations.createdBy) {
+    Appointment.belongsTo(User, { foreignKey: 'createdByUserId', as: 'createdBy' });
+  }
+
+  if (!Appointment.associations || !Appointment.associations.updatedBy) {
+    Appointment.belongsTo(User, { foreignKey: 'updatedByUserId', as: 'updatedBy' });
   }
 }
 
@@ -258,6 +268,10 @@ const normalizeAppointmentServicesForPayload = (appointment) => {
   }];
 };
 
+const toAuthorPayload = (user) => (
+  user ? { id: user.id, name: getDisplayName(user) } : null
+);
+
 const toPayload = (appointment) => {
   const services = normalizeAppointmentServicesForPayload(appointment);
   const serviceIds = services.map((service) => service.serviceId);
@@ -288,6 +302,8 @@ const toPayload = (appointment) => {
     googleSyncStatus: appointment.googleSyncStatus,
     lastSyncedAt: appointment.lastSyncedAt ? new Date(appointment.lastSyncedAt).toISOString() : null,
     syncError: appointment.syncError || null,
+    createdBy: toAuthorPayload(appointment.createdBy),
+    updatedBy: toAuthorPayload(appointment.updatedBy),
   };
 };
 
@@ -315,6 +331,8 @@ const appointmentIncludes = [
     as: 'services',
     attributes: ['id', 'serviceId', 'serviceName', 'price', 'estimatedTime', 'sortOrder'],
   },
+  { model: User, as: 'createdBy', attributes: ['id', 'name', 'username'] },
+  { model: User, as: 'updatedBy', attributes: ['id', 'name', 'username'] },
 ];
 
 const loadAppointmentWithRelations = async (id, userId) => Appointment.findOne({
@@ -438,6 +456,7 @@ class AppointmentController {
           source: 'app',
           googleSyncStatus,
           syncError: null,
+          createdByUserId: getActorId(req),
         }, { transaction });
 
         await AppointmentService.bulkCreate(
@@ -545,6 +564,7 @@ class AppointmentController {
           notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,
           googleSyncStatus,
           syncError: null,
+          updatedByUserId: getActorId(req),
         }, { transaction });
 
         await AppointmentService.destroy({
@@ -589,7 +609,7 @@ class AppointmentController {
       const googleSyncStatus = shouldSyncStatus
         ? await getInitialGoogleSyncStatus(userId)
         : appointment.googleSyncStatus;
-      const updateValues = { status };
+      const updateValues = { status, updatedByUserId: getActorId(req) };
 
       if (shouldSyncStatus) {
         updateValues.googleSyncStatus = googleSyncStatus;
@@ -629,7 +649,7 @@ class AppointmentController {
       }
 
       if (!appointment.archivedAt) {
-        await appointment.update({ archivedAt: new Date() });
+        await appointment.update({ archivedAt: new Date(), updatedByUserId: getActorId(req) });
       }
 
       const archived = await loadAppointmentWithRelations(appointment.id, userId);

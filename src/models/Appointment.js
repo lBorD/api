@@ -75,6 +75,15 @@ const Appointment = sequelize.define('Appointment', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  // Quem fez login ao criar/alterar; pode ser a dona ou uma funcionaria.
+  createdByUserId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  updatedByUserId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
 }, {
   tableName: 'appointments',
   timestamps: true,

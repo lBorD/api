@@ -41,11 +41,71 @@ describe('Login Controller', () => {
 
       expect(User.findOne).toHaveBeenCalledWith({ where: { email: loginData.email } });
       expect(bcrypt.compare).toHaveBeenCalledWith(loginData.password, mockUser.password);
-      expect(jwt.sign).toHaveBeenCalledWith({ id: mockUser.id }, process.env.JWT_SECRET, { expiresIn: '12h' });
+      expect(jwt.sign).toHaveBeenCalledWith(
+        { id: mockUser.id, actorId: mockUser.id, role: 'owner' },
+        process.env.JWT_SECRET,
+        { expiresIn: '12h' },
+      );
       expect(response.body).toEqual({
         token: mockToken,
-        success: true
+        success: true,
+        user: {
+          id: mockUser.id,
+          name: mockUser.email,
+          email: mockUser.email,
+          role: 'owner',
+        },
       });
+    });
+
+    it('deve emitir token da funcionaria apontando para a conta da dona', async () => {
+      User.findOne.mockResolvedValue({
+        id: 7,
+        name: 'Maria',
+        email: 'maria@estudio.com',
+        password: 'hashedPassword',
+        role: 'staff',
+        accountOwnerId: 1,
+        active: true,
+      });
+      bcrypt.compare.mockResolvedValue(true);
+      jwt.sign.mockReturnValue('staff-token');
+
+      const response = await request(app)
+        .post('/login')
+        .send({ email: 'maria@estudio.com', password: 'senha123' })
+        .expect(200);
+
+      expect(jwt.sign).toHaveBeenCalledWith(
+        { id: 1, actorId: 7, role: 'staff' },
+        process.env.JWT_SECRET,
+        { expiresIn: '12h' },
+      );
+      expect(response.body.user).toEqual({
+        id: 7,
+        name: 'Maria',
+        email: 'maria@estudio.com',
+        role: 'staff',
+      });
+    });
+
+    it('deve recusar funcionaria desativada', async () => {
+      User.findOne.mockResolvedValue({
+        id: 7,
+        email: 'maria@estudio.com',
+        password: 'hashedPassword',
+        role: 'staff',
+        accountOwnerId: 1,
+        active: false,
+      });
+      bcrypt.compare.mockResolvedValue(true);
+
+      await request(app)
+        .post('/login')
+        .send({ email: 'maria@estudio.com', password: 'senha123' })
+        .expect(403);
+
+      expect(jwt.sign).not.toHaveBeenCalled();
     });
 
     it('deve retornar erro quando email não for encontrado', async () => {

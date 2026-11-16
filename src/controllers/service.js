@@ -104,7 +104,7 @@ class ServiceController {
         return res.status(400).json({ error: 'ID inválido. O ID deve ser um número positivo.' });
       }
 
-      const service = await Service.findOne({ where: { id, userId } });
+      const service = await Service.findOne({ where: { id, userId, active: true } });
       if (!service) {
         return res.status(404).json({ error: 'Serviço não encontrado.' });
       }
@@ -128,14 +128,14 @@ class ServiceController {
           estimatedTime,
           cost,
         },
-        { where: { id, userId } },
+        { where: { id, userId, active: true } },
       );
 
       if (!updated) {
         return res.status(404).json({ error: 'Serviço não encontrado.' });
       }
 
-      const service = await Service.findOne({ where: { id, userId } });
+      const service = await Service.findOne({ where: { id, userId, active: true } });
       return res.status(200).json(service);
     } catch (error) {
       return res.status(500).json({ error: 'Erro ao atualizar serviço.' });
@@ -151,14 +151,17 @@ class ServiceController {
         return res.status(400).json({ error: 'ID inválido. O ID deve ser um número positivo.' });
       }
 
-      const service = await Service.findOne({ where: { id, userId } });
+      const service = await Service.findOne({ where: { id, userId, active: true } });
       if (!service) {
         return res.status(404).json({ error: 'Serviço não encontrado.' });
       }
 
-      await service.destroy();
+      // Exclusao logica: agendamentos guardam o servico por FK RESTRICT, e o
+      // historico continua lendo o snapshot em appointment_services.
+      await service.update({ active: false });
       return res.status(200).json({ success: true });
     } catch (error) {
+      console.error('Erro ao excluir serviço:', error);
       return res.status(500).json({ error: 'Erro ao excluir serviço.' });
     }
   }
