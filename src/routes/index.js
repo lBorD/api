@@ -6,6 +6,7 @@ import googleCalendarIntegrationRoutes from './googleCalendarIntegrationRoutes.j
 import userRoutes from './public/userRoutes.js';
 import healthRoutes from './healthRoutes.js';
 import statusRoutes from './statusRoutes.js';
+import teamRoutes from './teamRoutes.js';
 
 export {
   authRoutes,
@@ -16,4 +17,5 @@ export {
   userRoutes,
   healthRoutes,
   statusRoutes,
+  teamRoutes,
 };

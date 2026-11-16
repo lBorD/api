@@ -8,10 +8,15 @@ import Client from '../../src/models/Client.js';
 import Service from '../../src/models/Service.js';
 import { encryptToken } from '../../src/services/googleTokenCrypto.js';
 
+// Token antigo da dona, so com `{ id }`. Os testes de autoria trocam pela funcionaria.
+const ownerUser = { id: 1 };
+const staffUser = { id: 1, actorId: 7, role: 'staff' };
+let currentUser = ownerUser;
+
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
-  req.user = { id: 1 };
+  req.user = currentUser;
   next();
 });
 
@@ -136,6 +141,7 @@ const configureUpdateMocks = ({ snapshotRows, catalogServices }) => {
 describe('AppointmentController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    currentUser = ownerUser;
     configureFindAllMocks({ snapshotRows: [], catalogServices: [service] });
     AppointmentService.bulkCreate.mockImplementation(() => Promise.resolve([]));
     CalendarConnection.findOne.mockResolvedValue(null);
@@ -478,7 +484,10 @@ describe('AppointmentController', () => {
       .patch('/appointments/10/archive')
       .expect(200);
 
-    expect(canceledAppointment.update).toHaveBeenCalledWith({ archivedAt: expect.any(Date) });
+    expect(canceledAppointment.update).toHaveBeenCalledWith({
+      archivedAt: expect.any(Date),
+      updatedByUserId: 1,
+    });
     expect(response.body).toEqual(expect.objectContaining({
       id: 10,
       status: 'canceled',
@@ -500,5 +509,97 @@ describe('AppointmentController', () => {
 
     expect(scheduledAppointment.update).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  describe('quem agendou', () => {
+    it('grava a funcionaria como autora, mas o agendamento continua na conta da dona', async () => {
+      currentUser = staffUser;
+      configureFindOneMocks({
+        ...buildLoadedAppointment(0),
+        createdBy: { id: 7, name: 'Maria', username: 'maria@estudio.com' },
+      });
+      Appointment.create.mockResolvedValue({ id: 10 });
+
+      const response = await request(app)
+        .post('/appointments')
+        .send({
+          clientId: 1,
+          serviceIds: [service.id],
+          startAt: '2026-06-01T14:00:00.000Z',
+        })
+        .expect(201);
+
+      expect(Appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 1, createdByUserId: 7 }),
+        expect.any(Object),
+      );
+      expect(response.body.createdBy).toEqual({ id: 7, name: 'Maria' });
+      expect(response.body.updatedBy).toBeNull();
+    });
+
+    it('grava a dona como autora quando o token e antigo, so com id', async () => {
+      configureFindOneMocks(buildLoadedAppointment(0));
+      Appointment.create.mockResolvedValue({ id: 10 });
+
+      await request(app)
+        .post('/appointments')
+        .send({
+          clientId: 1,
+          serviceIds: [service.id],
+          startAt: '2026-06-01T14:00:00.000Z',
+        })
+        .expect(201);
+
+      expect(Appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({ createdByUserId: 1 }),
+        expect.any(Object),
+      );
+    });
+
+    it('registra quem alterou na edicao sem mexer em quem criou', async () => {
+      currentUser = staffUser;
+      const appointment = configureUpdateMocks({
+        snapshotRows: [snapshotOfService],
+        catalogServices: [service],
+      });
+
+      await request(app)
+        .patch('/appointments/10')
+        .send({ notes: 'Chega 10 min antes' })
+        .expect(200);
+
+      const [values] = appointment.update.mock.calls[0];
+      expect(values.updatedByUserId).toBe(7);
+      expect(values).not.toHaveProperty('createdByUserId');
+    });
+
+    it('registra quem alterou ao mudar o status', async () => {
+      currentUser = staffUser;
+      const appointment = {
+        ...buildLoadedAppointment(0),
+        update: jest.fn().mockResolvedValue({}),
+      };
+      Appointment.findOne.mockResolvedValue(appointment);
+
+      await request(app)
+        .patch('/appointments/10/status')
+        .send({ status: 'completed' })
+        .expect(200);
+
+      expect(appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'completed', updatedByUserId: 7 }),
+      );
+    });
+
+    it('devolve autores nulos para agendamentos anteriores ao registro', async () => {
+      Appointment.findAll.mockResolvedValue([buildLoadedAppointment(0)]);
+
+      const response = await request(app)
+        .get('/appointments?from=2026-06-01T00:00:00.000Z&to=2026-06-02T00:00:00.000Z')
+        .expect(200);
+
+      expect(response.body[0].createdBy).toBeNull();
+      expect(response.body[0].updatedBy).toBeNull();
+    });
   });
 });

@@ -42,7 +42,13 @@ describe('Auth Routes', () => {
 
       expect(response.body).toEqual({
         token: mockToken,
-        success: true
+        success: true,
+        user: {
+          id: 1,
+          name: 'test@example.com',
+          email: 'test@example.com',
+          role: 'owner',
+        },
       });
     });
 

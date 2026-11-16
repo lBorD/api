@@ -30,6 +30,20 @@ const User = sequelize.define('User', {
     allowNull: false,
     defaultValue: true,
   },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  // owner = dona da conta; staff = funcionaria que opera a conta da dona.
+  role: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    defaultValue: 'owner',
+  },
+  accountOwnerId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
   tableName: 'users',
@@ -43,7 +57,8 @@ const User = sequelize.define('User', {
     },
     beforeUpdate: async (user) => {
       if (user.password && user.changed('password')) {
-        const hash = await bcrypt.hash(user.password, process.env.SALT_ROUNDS);
+        const rounds = parseInt(process.env.SALT_ROUNDS, 10);
+        const hash = await bcrypt.hash(user.password, rounds);
         user.password = hash;
       }
     }

@@ -11,6 +11,7 @@ import {
   userRoutes,
   healthRoutes,
   statusRoutes,
+  teamRoutes,
 } from './src/routes/index.js';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/integrations/google-calendar', googleCalendarIntegrationRoutes);
 app.use('/users', userRoutes);
 app.use('/health', healthRoutes);
 app.use('/status', statusRoutes);
+app.use('/team', teamRoutes);
 
 const port = process.env.PORT || 3000;
 
