@@ -1,9 +1,10 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { buildTokenPayload, getDisplayName, isStaff } from '../utils/account.js';
 
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '12h' });
+const generateToken = (user) => {
+  return jwt.sign(buildTokenPayload(user), process.env.JWT_SECRET, { expiresIn: '12h' });
 };
 
 const login = async (req, res) => {
@@ -20,11 +21,22 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Senha incorreta.' });
     }
 
-    const token = generateToken(user.id);
+    if (isStaff(user) && !user.active) {
+      return res.status(403).json({ message: 'Acesso desativado. Fale com a responsável pela conta.' });
+    }
+
+    const token = generateToken(user);
+    const { role } = buildTokenPayload(user);
 
     res.json({
       token,
       success: true,
+      user: {
+        id: user.id,
+        name: getDisplayName(user),
+        email: user.email,
+        role,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: 'Erro no servidor', error });

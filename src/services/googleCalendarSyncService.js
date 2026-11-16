@@ -7,6 +7,7 @@ import {
   deleteGoogleCalendarEvent,
   updateGoogleCalendarEvent,
 } from './googleCalendarService.js';
+import { getDisplayName } from '../utils/account.js';
 
 const GOOGLE_PROVIDER = 'google';
 const ACCESS_TOKEN_REFRESH_WINDOW_MS = 60 * 1000;
@@ -141,6 +142,11 @@ const buildDescription = (appointment) => {
   lines.push(`Valor: ${formatCurrency(price)}`);
   lines.push(`Sinal: ${formatCurrency(depositAmount)}`);
   lines.push(`Falta pagar: ${formatCurrency(calculateRemainingAmount(price, depositAmount))}`);
+
+  const createdByName = getDisplayName(getModelValue(appointment, 'createdBy'));
+  if (createdByName) {
+    lines.push(`Agendado por: ${createdByName}`);
+  }
 
   const notes = getModelValue(appointment, 'notes');
   if (notes) {
