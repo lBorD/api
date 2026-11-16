@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express from 'express';
+import { Op } from 'sequelize';
 import AppointmentController from '../../src/controllers/appointment.js';
 import Appointment from '../../src/models/Appointment.js';
 import AppointmentService from '../../src/models/AppointmentService.js';
@@ -113,10 +114,11 @@ const configureFindAllMocks = ({ snapshotRows, catalogServices }) => {
   AppointmentService.findAll.mockImplementation(findAll);
 };
 
-const configureUpdateMocks = ({ snapshotRows, catalogServices }) => {
+const configureUpdateMocks = ({ snapshotRows, catalogServices, stored = {} }) => {
   const loadedAppointment = buildLoadedAppointment(0);
   const appointment = {
     ...loadedAppointment,
+    ...stored,
     update: jest.fn().mockResolvedValue({}),
   };
 
@@ -600,6 +602,166 @@ describe('AppointmentController', () => {
 
       expect(response.body[0].createdBy).toBeNull();
       expect(response.body[0].updatedBy).toBeNull();
+    });
+  });
+
+  describe('duracao ajustada no atendimento', () => {
+    const createPayload = {
+      clientId: 1,
+      serviceIds: [service.id],
+      startAt: '2026-06-01T14:00:00.000Z',
+    };
+
+    // A busca de conflito e a unica que filtra por startAt e endAt ao mesmo tempo.
+    const findConflictQuery = () => Appointment.findOne.mock.calls
+      .map(([options = {}]) => options.where)
+      .find((where) => where?.startAt && where?.endAt);
+
+    it('mantem a soma dos servicos quando a duracao nao e informada', async () => {
+      configureFindOneMocks(buildLoadedAppointment(0));
+      Appointment.create.mockResolvedValue({ id: 10 });
+
+      await request(app).post('/appointments').send(createPayload).expect(201);
+
+      expect(Appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endAt: new Date('2026-06-01T15:00:00.000Z'),
+          durationMinutes: null,
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('encurta o atendimento sem mexer no preco', async () => {
+      configureFindOneMocks(buildLoadedAppointment(0));
+      Appointment.create.mockResolvedValue({ id: 10 });
+
+      await request(app)
+        .post('/appointments')
+        .send({ ...createPayload, durationMinutes: 30 })
+        .expect(201);
+
+      expect(Appointment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endAt: new Date('2026-06-01T14:30:00.000Z'),
+          durationMinutes: 30,
+          price: 200,
+          depositAmount: 60,
+        }),
+        expect.any(Object),
+      );
+      expect(AppointmentService.bulkCreate).toHaveBeenCalledWith(
+        [expect.objectContaining({ estimatedTime: 60 })],
+        expect.any(Object),
+      );
+    });
+
+    it('confere conflito pelo fim ajustado e mantem o 409 sem confirmacao', async () => {
+      Client.findOne.mockResolvedValue({ id: 1, userId: 1 });
+      Appointment.findOne.mockResolvedValue({ id: 99, userId: 1 });
+
+      await request(app)
+        .post('/appointments')
+        .send({ ...createPayload, durationMinutes: 90 })
+        .expect(409);
+
+      expect(findConflictQuery().startAt[Op.lt]).toEqual(new Date('2026-06-01T15:30:00.000Z'));
+      expect(Appointment.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['zero', 0],
+      ['negativo', -10],
+      ['nao inteiro', 30.5],
+      ['acima de 12h', 721],
+      ['texto', '30'],
+    ])('recusa duracao invalida (%s)', async (_label, durationMinutes) => {
+      await request(app)
+        .post('/appointments')
+        .send({ ...createPayload, durationMinutes })
+        .expect(400);
+
+      expect(Appointment.create).not.toHaveBeenCalled();
+    });
+
+    it('preserva a duracao ajustada quando a edicao mexe so na observacao', async () => {
+      const appointment = configureUpdateMocks({
+        snapshotRows: [snapshotOfService],
+        catalogServices: [service],
+        stored: { durationMinutes: 30, endAt: new Date('2026-06-01T14:30:00.000Z') },
+      });
+
+      await request(app)
+        .patch('/appointments/10')
+        .send({ notes: 'Chega 10 min antes' })
+        .expect(200);
+
+      expect(appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endAt: new Date('2026-06-01T14:30:00.000Z'),
+          durationMinutes: 30,
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('volta a soma dos servicos com durationMinutes null', async () => {
+      const appointment = configureUpdateMocks({
+        snapshotRows: [snapshotOfService],
+        catalogServices: [service],
+        stored: { durationMinutes: 30, endAt: new Date('2026-06-01T14:30:00.000Z') },
+      });
+
+      await request(app)
+        .patch('/appointments/10')
+        .send({ durationMinutes: null })
+        .expect(200);
+
+      expect(appointment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endAt: new Date('2026-06-01T15:00:00.000Z'),
+          durationMinutes: null,
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('recusa duracao invalida na edicao', async () => {
+      const appointment = configureUpdateMocks({
+        snapshotRows: [snapshotOfService],
+        catalogServices: [service],
+      });
+
+      await request(app)
+        .patch('/appointments/10')
+        .send({ durationMinutes: 0 })
+        .expect(400);
+
+      expect(appointment.update).not.toHaveBeenCalled();
+    });
+
+    it('devolve a duracao efetiva e se ela foi ajustada', async () => {
+      Appointment.findAll.mockResolvedValue([
+        {
+          ...buildLoadedAppointment(0),
+          durationMinutes: 30,
+          endAt: new Date('2026-06-01T14:30:00.000Z'),
+        },
+        { ...buildLoadedAppointment(0), id: 11 },
+      ]);
+
+      const response = await request(app)
+        .get('/appointments?from=2026-06-01T00:00:00.000Z&to=2026-06-02T00:00:00.000Z')
+        .expect(200);
+
+      expect(response.body[0]).toEqual(expect.objectContaining({
+        durationMinutes: 30,
+        hasCustomDuration: true,
+      }));
+      expect(response.body[1]).toEqual(expect.objectContaining({
+        durationMinutes: 60,
+        hasCustomDuration: false,
+      }));
     });
   });
 });

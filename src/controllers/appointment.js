@@ -13,6 +13,7 @@ import { getActorId, getDisplayName } from '../utils/account.js';
 
 const ALLOWED_STATUS = ['scheduled', 'canceled', 'completed'];
 const DEFAULT_DEPOSIT_RATE = 0.3;
+const MAX_DURATION_MINUTES = 12 * 60;
 
 if (typeof Appointment?.belongsTo === 'function') {
   if (!Appointment.associations || !Appointment.associations.client) {
@@ -149,6 +150,15 @@ const loadServicesByIds = async (userId, serviceIds) => {
   return orderedServices.every(Boolean) ? orderedServices : null;
 };
 
+// A usuaria encurta ou estica um atendimento conforme a cliente, sem mexer no
+// cadastro do servico. `null` e o padrao: a soma do estimatedTime dos servicos.
+const isValidDurationMinutes = (value) => (
+  value === null
+  || (Number.isInteger(value) && value > 0 && value <= MAX_DURATION_MINUTES)
+);
+
+const calculateEndAt = (startAt, minutes) => new Date(startAt.getTime() + minutes * 60 * 1000);
+
 const calculateServicesTotals = (services) => services.reduce((totals, service) => ({
   price: totals.price + Number(service.price || 0),
   estimatedTime: totals.estimatedTime + Number(service.estimatedTime || 0),
@@ -279,11 +289,17 @@ const toPayload = (appointment) => {
     .map((service) => service.name)
     .filter(Boolean)
     .join(' + ');
+  const startAt = new Date(appointment.startAt);
+  const endAt = new Date(appointment.endAt);
+  const hasCustomDuration = appointment.durationMinutes !== null && appointment.durationMinutes !== undefined;
 
   return {
     id: appointment.id,
-    startAt: new Date(appointment.startAt).toISOString(),
-    endAt: new Date(appointment.endAt).toISOString(),
+    startAt: startAt.toISOString(),
+    endAt: endAt.toISOString(),
+    // Duracao efetiva, ajustada ou derivada: o endAt ja foi gravado com ela.
+    durationMinutes: Math.round((endAt.getTime() - startAt.getTime()) / (60 * 1000)),
+    hasCustomDuration,
     clientId: appointment.clientId,
     serviceId: serviceIds[0] || appointment.serviceId,
     serviceIds,
@@ -408,6 +424,11 @@ class AppointmentController {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
+      const durationMinutes = req.body.durationMinutes ?? null;
+      if (!isValidDurationMinutes(durationMinutes)) {
+        return res.status(400).json({ error: `durationMinutes invalido. Use minutos inteiros entre 1 e ${MAX_DURATION_MINUTES}.` });
+      }
+
       const [client, services] = await Promise.all([
         Client.findOne({ where: { id: clientId, userId } }),
         loadServicesByIds(userId, serviceIds),
@@ -426,7 +447,7 @@ class AppointmentController {
         return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
       }
 
-      const parsedEndAt = new Date(parsedStartAt.getTime() + totals.estimatedTime * 60 * 1000);
+      const parsedEndAt = calculateEndAt(parsedStartAt, durationMinutes ?? totals.estimatedTime);
       const appointmentDepositAmount = parsedDepositAmount ?? calculateDefaultDepositAmount(totals.price);
       const allowConflict = req.body.allowConflict === true;
 
@@ -449,6 +470,7 @@ class AppointmentController {
           serviceId: services[0].id,
           startAt: parsedStartAt,
           endAt: parsedEndAt,
+          durationMinutes,
           price: totals.price,
           depositAmount: appointmentDepositAmount,
           status: 'scheduled',
@@ -504,6 +526,16 @@ class AppointmentController {
         return res.status(400).json({ error: 'depositAmount invalido.' });
       }
 
+      // Ausente preserva o ajuste: editar so a observacao nao pode devolver o
+      // atendimento a duracao padrao. `null` explicito e que volta ao padrao.
+      const durationMinutes = req.body.durationMinutes !== undefined
+        ? req.body.durationMinutes
+        : (appointment.durationMinutes ?? null);
+
+      if (!isValidDurationMinutes(durationMinutes)) {
+        return res.status(400).json({ error: `durationMinutes invalido. Use minutos inteiros entre 1 e ${MAX_DURATION_MINUTES}.` });
+      }
+
       const snapshots = await loadAppointmentServiceSnapshots(appointment.id);
       const currentServiceIds = snapshots.size > 0
         ? [...snapshots.keys()]
@@ -537,7 +569,7 @@ class AppointmentController {
         return res.status(400).json({ error: 'A duracao total dos servicos deve ser maior que zero.' });
       }
 
-      const nextEndAt = new Date(nextStartAt.getTime() + totals.estimatedTime * 60 * 1000);
+      const nextEndAt = calculateEndAt(nextStartAt, durationMinutes ?? totals.estimatedTime);
       const allowConflict = req.body.allowConflict === true;
 
       const conflict = await findConflict({
@@ -559,6 +591,7 @@ class AppointmentController {
           serviceId: services[0].id,
           startAt: nextStartAt,
           endAt: nextEndAt,
+          durationMinutes,
           price: totals.price,
           depositAmount: parsedDepositAmount,
           notes: req.body.notes !== undefined ? req.body.notes : appointment.notes,

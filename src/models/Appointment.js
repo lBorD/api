@@ -36,6 +36,11 @@ const Appointment = sequelize.define('Appointment', {
     allowNull: true,
     defaultValue: 0,
   },
+  // Duracao ajustada so neste atendimento; null usa a soma dos servicos.
+  durationMinutes: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
   status: {
     type: DataTypes.STRING,
     allowNull: false,
